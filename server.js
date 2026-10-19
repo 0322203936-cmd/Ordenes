@@ -12,7 +12,8 @@ const {
 } = require('./database');
 const { createPoscoWorkbook } = require('./posco-export');
 const { createOrderPdf } = require('./order-pdf');
-const { sendWholesaleEmail } = require('./email-sender');
+const { createPassingSheetPdf } = require('./passing-pdf');
+const { sendPassingSheetEmail, sendWholesaleEmail } = require('./email-sender');
 
 const PORT = process.env.PORT || 3050;
 const ROOT_DIR = __dirname;
@@ -92,6 +93,23 @@ const server = http.createServer(async (req, res) => {
         boomPending: posco.boomPending
       });
       sendJson(res, 200, { ok: true, ...email, rows: posco.rows });
+    } catch (err) {
+      const status = err.message?.includes('Falta configurar') || err.message?.includes('Microsoft Graph') ? 503 : 400;
+      sendJson(res, err.status || status, { error: err.message });
+    }
+    return;
+  }
+
+  if (pathname === '/api/passing/send' && req.method === 'POST') {
+    try {
+      const parsed = JSON.parse(await readRequestBody(req));
+      const pdf = await createPassingSheetPdf(parsed);
+      const email = await sendPassingSheetEmail({
+        workbook: parsed,
+        pdfBuffer: pdf.buffer,
+        pdfFileName: pdf.fileName
+      });
+      sendJson(res, 200, { ok: true, ...email });
     } catch (err) {
       const status = err.message?.includes('Falta configurar') || err.message?.includes('Microsoft Graph') ? 503 : 400;
       sendJson(res, err.status || status, { error: err.message });

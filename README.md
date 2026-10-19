@@ -20,6 +20,7 @@ También se puede iniciar en Windows con `INICIAR_SISTEMA.bat`.
 - `server.js`: servidor HTTP y API de guardado.
 - `posco-export.js`: crea el Excel compatible con POSCO desde `PO Nuevo` y detecta productos pendientes de BOM/BOOM.
 - `order-pdf.js`: crea el PDF de la orden para adjuntarlo al correo.
+- `passing-pdf.js`: crea el PDF del Passing Sheet para adjuntarlo al correo.
 - `email-sender.js`: envía PDF, POSCO y el detalle de BOM mediante Microsoft Graph.
 - `data/initial_workbook.json`: datos iniciales.
 - `data/workbook_state.json`: estado guardado actualmente.
@@ -30,7 +31,7 @@ El botón `Generar Orden` abre la orden en una vista lista para usar `Imprimir` 
 
 El botón `Enviar` aparece después de generar una orden y manda por Microsoft Graph el PDF, el Excel POSCO y los pendientes de BOM/BOOM en el cuerpo del mensaje. Configura en Render `SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`, `SHAREPOINT_CLIENT_SECRET`, `MAIL_SENDER` y `WHOLESALE_PDF_RECIPIENTS`. Los tres primeros nombres se conservan para reutilizar las credenciales del bot de referencia. La aplicación de Microsoft Entra debe tener permiso de aplicación `Mail.Send` con consentimiento de administrador.
 
-El botón `Generar Passing Sheet` prepara la vista imprimible del Passing Sheet.
+El botón `Generar Passing Sheet` prepara la vista imprimible del Passing Sheet y habilita `Enviar` para mandar ese PDF por correo a los mismos destinatarios.
 
 ## Neon PostgreSQL
 

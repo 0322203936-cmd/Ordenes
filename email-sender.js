@@ -92,6 +92,14 @@ function metadata(workbook) {
   };
 }
 
+function passingMetadata(workbook) {
+  const sheet = workbook?.sheets?.['PASSING SHEET'];
+  return {
+    customer: clean(cellValue(sheet, 'B5')) || 'Cliente',
+    loadDate: clean(cellValue(sheet, 'B6')) || 'Sin fecha'
+  };
+}
+
 function pendingHtml(boomPending) {
   if (!boomPending.length) return '';
   const items = boomPending.map(item => (
@@ -119,6 +127,24 @@ function buildWholesaleMailPayload({ workbook, recipient, pdfBuffer, pdfFileName
         attachment(pdfFileName, 'application/pdf', pdfBuffer),
         attachment(poscoFileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', poscoBuffer)
       ]
+    },
+    saveToSentItems: true
+  };
+}
+
+function buildPassingSheetMailPayload({ workbook, recipient, pdfBuffer, pdfFileName }) {
+  const passing = passingMetadata(workbook);
+  const body = `<p>Hola ${escapeHtml(recipient.name)},</p>`
+    + `<p>Adjunto encontrarás el Passing Sheet generado. Load Date: <strong>${escapeHtml(passing.loadDate)}</strong>.</p>`
+    + '<p>Saludos.</p>';
+  return {
+    message: {
+      subject: `Passing Sheet Wholesale - ${passing.customer}`,
+      body: { contentType: 'HTML', content: body },
+      toRecipients: [{ emailAddress: { address: recipient.address } }],
+      ccRecipients: [],
+      bccRecipients: [],
+      attachments: [attachment(pdfFileName, 'application/pdf', pdfBuffer)]
     },
     saveToSentItems: true
   };
@@ -153,4 +179,31 @@ async function sendWholesaleEmail({ workbook, pdfBuffer, pdfFileName, poscoBuffe
   return { sentTo: results, pendingBom: boomPending.length };
 }
 
-module.exports = { buildWholesaleMailPayload, parseRecipients, sendWholesaleEmail };
+async function sendPassingSheetEmail({ workbook, pdfBuffer, pdfFileName }) {
+  const sender = requiredEnv('MAIL_SENDER');
+  const recipients = parseRecipients();
+  const token = await graphToken();
+  const results = [];
+  for (const recipient of recipients) {
+    const payload = buildPassingSheetMailPayload({ workbook, recipient, pdfBuffer, pdfFileName });
+    const response = await fetch(`${GRAPH_URL}/users/${encodeURIComponent(sender)}/sendMail`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300);
+      throw new Error(`Microsoft Graph rechazó el Passing Sheet a ${recipient.address} (${response.status}). ${detail}`);
+    }
+    results.push(recipient.address);
+  }
+  return { sentTo: results };
+}
+
+module.exports = {
+  buildPassingSheetMailPayload,
+  buildWholesaleMailPayload,
+  parseRecipients,
+  sendPassingSheetEmail,
+  sendWholesaleEmail
+};

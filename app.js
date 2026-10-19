@@ -17,6 +17,7 @@
   let inlineEditor = null;
   let zoomLevel = 80;
   let searchQuery = '';
+  let emailSendMode = null;
 
   // Filters for DayOrders
   let dayFilterDate = 'ALL';
@@ -1525,6 +1526,7 @@
       }
 
       await response.arrayBuffer();
+      emailSendMode = 'order';
       const sendButton = document.getElementById('btnSendOrder');
       if (sendButton) {
         sendButton.style.display = 'inline-flex';
@@ -1565,11 +1567,12 @@
   async function enviarOrdenPorCorreo() {
     const button = document.getElementById('btnSendOrder');
     if (!button) return;
+    const isPassingSheet = emailSendMode === 'passing';
     const originalLabel = button.textContent;
     button.disabled = true;
     button.textContent = '✉️ Enviando...';
     try {
-      const response = await fetch('/api/order/send', {
+      const response = await fetch(isPassingSheet ? '/api/passing/send' : '/api/order/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workbook)
@@ -1583,7 +1586,7 @@
       if (!response.ok) throw new Error(payload.error || 'No se pudo enviar la orden por correo.');
       const recipients = Array.isArray(payload.sentTo) ? payload.sentTo.join(', ') : 'los destinatarios configurados';
       const pendingMessage = payload.pendingBom > 0 ? ` BOM pendiente incluido: ${payload.pendingBom}.` : '';
-      showToast(`Correo enviado a ${recipients}.${pendingMessage}`);
+      showToast(`${isPassingSheet ? 'Passing Sheet enviado' : 'Orden enviada'} a ${recipients}.${pendingMessage}`);
     } catch (error) {
       showToast(`No se pudo enviar la orden: ${error.message}`, true);
     } finally {
@@ -1727,6 +1730,12 @@
       </div>
     `;
     openPdfPreviewModal('PASSING SHEET – FLORAL TRADE ($A$1:$B$18)', 'Passing_Sheet.pdf', html);
+    emailSendMode = 'passing';
+    const sendButton = document.getElementById('btnSendOrder');
+    if (sendButton) {
+      sendButton.style.display = 'inline-flex';
+      sendButton.disabled = false;
+    }
   }
 
   function openPdfPreviewModal(title, filename, contentHtml) {
@@ -1735,6 +1744,7 @@
     document.getElementById('pdfFilenameInput').value = filename;
     document.getElementById('pdfPreviewContainer').innerHTML = contentHtml;
     document.getElementById('printOnlyRoot').innerHTML = contentHtml;
+    emailSendMode = null;
     const sendButton = document.getElementById('btnSendOrder');
     if (sendButton) {
       sendButton.style.display = 'none';
