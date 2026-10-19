@@ -17,6 +17,7 @@
   let inlineEditor = null;
   let zoomLevel = 80;
   let searchQuery = '';
+  let poscoDownload = null;
 
   // Filters for DayOrders
   let dayFilterDate = 'ALL';
@@ -156,6 +157,58 @@
     const n = Number(val);
     if (isNaN(n)) return String(val);
     return '$ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function isBomPendingStatus(value) {
+    const status = String(value || '').trim().toUpperCase();
+    return status === 'PENDIENTE DE BOM' || status === 'PENDIENTE DE BOOM';
+  }
+
+  function getPendingBomRows() {
+    const ws = workbook?.sheets?.['PO Nuevo'];
+    if (!ws) return [];
+    const lastProdRow = getPONuevoTotalRow() - 1;
+    const pending = [];
+    for (let r = 22; r <= lastProdRow; r += 1) {
+      const flower = ws.cells[`B${r}`]?.v;
+      if (!flower || !isBomPendingStatus(ws.cells[`J${r}`]?.v)) continue;
+      pending.push({
+        row: r,
+        product: flower,
+        recommendation: [
+          flower,
+          ws.cells[`C${r}`]?.v,
+          ws.cells[`D${r}`]?.v ? `STEM/${ws.cells[`D${r}`].v}` : '',
+          ws.cells[`E${r}`]?.v ? `BU/${ws.cells[`E${r}`].v}` : '',
+          ws.cells[`F${r}`]?.v
+        ].filter(Boolean).join(' ') || 'Producto Wholesale'
+      });
+    }
+    return pending;
+  }
+
+  function downloadBlob(blob, filename) {
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+
+  function responseFilename(contentDisposition, fallback) {
+    const header = contentDisposition || '';
+    const encoded = header.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    if (encoded) {
+      try {
+        return decodeURIComponent(encoded);
+      } catch {
+        return encoded;
+      }
+    }
+    return header.match(/filename="([^"]+)"/i)?.[1] || fallback;
   }
 
   function getPONuevoTotalRow() {
@@ -1379,6 +1432,12 @@
     const ws = workbook.sheets['PO Nuevo'];
     const totalRow = getPONuevoTotalRow();
     const lastProdRow = totalRow - 1;
+    const lineCount = Array.from({ length: Math.max(0, lastProdRow - 21) }, (_, index) => index + 22)
+      .filter(row => String(ws.cells[`B${row}`]?.v || '').trim() !== '').length;
+    if (lineCount === 0) {
+      showToast(`No hay líneas para generar la orden (filas 22 a ${lastProdRow} vacías)`, true);
+      return false;
+    }
     const cliente = limpiarTexto(ws.cells['F11']?.v || 'Cliente');
     const fecha = limpiarTexto(formatDateDisplay(ws.cells['F19']?.v || 'Fecha'));
     const po = limpiarTexto(ws.cells['A9']?.v || 'PO');
@@ -1461,6 +1520,77 @@
     `;
 
     openPdfPreviewModal(`Orden de Compra — PO Nuevo (A1:I${totalRow})`, suggestedName, html);
+    return true;
+  }
+
+  async function generarArchivoPosco() {
+    const button = document.getElementById('btnVisualGenerarOrden');
+    if (button) {
+      button.disabled = true;
+      button.dataset.originalLabel = button.textContent.trim();
+      button.querySelector('.btn-dot')?.classList.add('is-busy');
+    }
+
+    try {
+      const response = await fetch('/api/posco/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workbook)
+      });
+
+      if (!response.ok) {
+        let detail = 'No se pudo crear el archivo POSCO.';
+        try {
+          const payload = await response.json();
+          detail = payload.error || detail;
+        } catch {
+          // Conserva el mensaje genérico si el servidor no devuelve JSON.
+        }
+        throw new Error(detail);
+      }
+
+      const blob = await response.blob();
+      const filename = responseFilename(
+        response.headers.get('Content-Disposition'),
+        'POSCO_Wholesale.xlsx'
+      );
+      poscoDownload = { blob, filename };
+      const downloadButton = document.getElementById('btnDownloadPosco');
+      if (downloadButton) {
+        downloadButton.style.display = 'inline-flex';
+        downloadButton.disabled = false;
+      }
+      downloadBlob(blob, filename);
+
+      let pending = getPendingBomRows();
+      const pendingHeader = response.headers.get('X-BOM-Pending');
+      if (pendingHeader) {
+        try {
+          pending = JSON.parse(decodeURIComponent(pendingHeader));
+        } catch {
+          // Usa la detección local si el encabezado no se puede interpretar.
+        }
+      }
+
+      const rowCount = response.headers.get('X-POSCO-Rows') || '0';
+      if (pending.length > 0) {
+        showToast(
+          `Orden generada: PDF listo y Excel POSCO descargado (${rowCount} línea(s)). Hay ${pending.length} producto(s) PENDIENTE(S) DE BOM.`,
+          true,
+          abrirModalHomologeados,
+          'Revisar BOM'
+        );
+      } else {
+        showToast(`Orden generada: PDF listo y Excel POSCO descargado (${rowCount} línea(s)).`);
+      }
+    } catch (error) {
+      showToast(`No se pudo generar el Excel POSCO: ${error.message}`, true);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.querySelector('.btn-dot')?.classList.remove('is-busy');
+      }
+    }
   }
 
   // MACRO 5 & 6: Module5.bas / Module6.bas -> DayOrders PDF (con o sin precios)
@@ -1606,6 +1736,12 @@
     document.getElementById('pdfFilenameInput').value = filename;
     document.getElementById('pdfPreviewContainer').innerHTML = contentHtml;
     document.getElementById('printOnlyRoot').innerHTML = contentHtml;
+    poscoDownload = null;
+    const poscoButton = document.getElementById('btnDownloadPosco');
+    if (poscoButton) {
+      poscoButton.style.display = 'none';
+      poscoButton.disabled = true;
+    }
     document.getElementById('pdfModalOverlay').style.display = 'flex';
   }
 
@@ -1624,7 +1760,14 @@
           color: ws.cells[`C${r}`]?.v || '-',
           box: ws.cells[`F${r}`]?.v || '-',
           dim: ws.cells[`G${r}`]?.v || '-',
-          pending: status === 'PENDIENTE DE BOM'
+          pending: isBomPendingStatus(status),
+          recommendation: [
+            flower,
+            ws.cells[`C${r}`]?.v,
+            ws.cells[`D${r}`]?.v ? `STEM/${ws.cells[`D${r}`].v}` : '',
+            ws.cells[`E${r}`]?.v ? `BU/${ws.cells[`E${r}`].v}` : '',
+            ws.cells[`F${r}`]?.v
+          ].filter(Boolean).join(' ') || 'Producto Wholesale'
         });
       }
     }
@@ -1642,6 +1785,7 @@
               <th>Color</th>
               <th>Caja</th>
               <th>Medidas</th>
+              <th>Propuesta BOM</th>
               <th>Estado BOM (Columna J)</th>
               <th>Acción</th>
             </tr>
@@ -1654,11 +1798,12 @@
                 <td style="text-align:center;">${escapeHtml(it.color)}</td>
                 <td style="text-align:center;">${escapeHtml(it.box)}</td>
                 <td style="text-align:center;">${escapeHtml(it.dim)}</td>
+                <td>${escapeHtml(it.recommendation)}</td>
                 <td style="text-align:center;font-weight:700;color:${it.pending ? '#dc2626' : '#15803d'};">
                   ${it.pending ? '⚠️ PENDIENTE DE BOM' : '✓ HOMOLOGADO'}
                 </td>
                 <td style="text-align:center;">
-                  ${it.pending ? `<button class="mini-reset-btn" style="margin:0;background:#15803d;color:#fff;" data-add-bom="${escapeHtml(it.flower)}">+ Agregar a Productos</button>` : 'Listo'}
+                  ${it.pending ? `<button class="mini-reset-btn" style="margin:0;background:#15803d;color:#fff;" data-add-bom="${escapeHtml(it.flower)}">+ Crear BOM / Agregar</button>` : 'Listo'}
                 </td>
               </tr>
             `).join('')}
@@ -2449,6 +2594,15 @@
     // Utility buttons
     document.getElementById('btnUndo').addEventListener('click', undo);
     document.getElementById('btnRedo').addEventListener('click', redo);
+    document.getElementById('btnVisualGenerarOrden').addEventListener('click', () => {
+      if (ejecutarGenerarOrdenPDF()) void generarArchivoPosco();
+    });
+    document.getElementById('btnVisualGenerarPassing').addEventListener('click', () => {
+      ejecutarPdfPassingSheet();
+    });
+    document.getElementById('btnDownloadPosco').addEventListener('click', () => {
+      if (poscoDownload) downloadBlob(poscoDownload.blob, poscoDownload.filename);
+    });
     document.getElementById('btnSaveManual')?.addEventListener('click', () => {
       saveWorkbookState();
       showToast('Cambios guardados');

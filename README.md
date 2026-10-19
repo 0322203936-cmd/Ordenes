@@ -18,8 +18,15 @@ También se puede iniciar en Windows con `INICIAR_SISTEMA.bat`.
 - `app.js`: interacción, edición, macros y exportaciones.
 - `formulaEngine.js`: cálculo de fórmulas del libro.
 - `server.js`: servidor HTTP y API de guardado.
+- `posco-export.js`: crea el Excel compatible con POSCO desde `PO Nuevo` y detecta productos pendientes de BOM/BOOM.
 - `data/initial_workbook.json`: datos iniciales.
 - `data/workbook_state.json`: estado guardado actualmente.
+
+## Generar Orden y Passing Sheet
+
+El botón `Generar Orden` abre la orden en una vista lista para usar `Guardar como PDF / Imprimir` y descarga automáticamente el Excel `POSCO Wholesale` con las columnas requeridas para cargarlo en POSCO. Si alguna línea tiene estado `PENDIENTE DE BOM` o `PENDIENTE DE BOOM`, el sistema muestra la propuesta de BOM y permite revisarla desde el catálogo de Productos.
+
+El botón `Generar Passing Sheet` prepara la vista imprimible del Passing Sheet.
 
 ## Neon PostgreSQL
 

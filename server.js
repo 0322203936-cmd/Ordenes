@@ -10,6 +10,7 @@ const {
   resetWorkbook,
   saveWorkbook
 } = require('./database');
+const { createPoscoWorkbook } = require('./posco-export');
 
 const PORT = process.env.PORT || 3050;
 const ROOT_DIR = __dirname;
@@ -56,6 +57,24 @@ function readRequestBody(req) {
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(parsedUrl.pathname);
+
+  if (pathname === '/api/posco/export' && req.method === 'POST') {
+    try {
+      const parsed = JSON.parse(await readRequestBody(req));
+      const result = await createPoscoWorkbook(parsed);
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${result.fileName.replace(/[\r\n"]/g, '_')}"`,
+        'Content-Length': result.buffer.length,
+        'X-BOM-Pending': encodeURIComponent(JSON.stringify(result.boomPending)),
+        'X-POSCO-Rows': String(result.rows)
+      });
+      res.end(result.buffer);
+    } catch (err) {
+      sendJson(res, err.status || 400, { error: err.message });
+    }
+    return;
+  }
 
   // API: Get Workbook State
   if (pathname === '/api/workbook' && req.method === 'GET') {
