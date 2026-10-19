@@ -24,7 +24,7 @@ También se puede iniciar en Windows con `INICIAR_SISTEMA.bat`.
 
 ## Generar Orden y Passing Sheet
 
-El botón `Generar Orden` abre la orden en una vista lista para usar `Guardar como PDF / Imprimir` y prepara el Excel `POSCO Wholesale` con las columnas requeridas para cargarlo en POSCO. El archivo se descarga únicamente al pulsar `Excel POSCO`. Si alguna línea tiene estado `PENDIENTE DE BOM` o `PENDIENTE DE BOOM`, el sistema muestra la propuesta de BOM y permite revisarla desde el catálogo de Productos.
+El botón `Generar Orden` abre la orden en una vista lista para usar `Imprimir` y preparar el PDF, además de preparar el Excel `POSCO Wholesale` con las columnas requeridas para cargarlo en POSCO. El archivo se descarga únicamente al pulsar `Excel POSCO`. Si alguna línea tiene estado `PENDIENTE DE BOM` o `PENDIENTE DE BOOM`, el sistema muestra la propuesta de BOM y permite revisarla desde el catálogo de Productos.
 
 El botón `Generar Passing Sheet` prepara la vista imprimible del Passing Sheet.
 
