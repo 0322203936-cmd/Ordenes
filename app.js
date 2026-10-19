@@ -952,6 +952,12 @@
     if (commit) setCellContent(activeSheet, coord, val);
   }
 
+  function commitPendingEditor() {
+    if (!inlineEditor) return;
+    hideValidationDropdown();
+    closeInlineEditor(true);
+  }
+
   function moveSelection(dRow, dCol, extendSelection = false) {
     const baseCoord = extendSelection ? (selectionEndCoord || selectedCoord) : selectedCoord;
     const parsed = parseCoord(baseCoord);
@@ -1405,6 +1411,7 @@
 
   // MACRO 3 & 4: Module3.bas / Module4.bas -> Generar_PDF_PO_Orden (PO Nuevo A1:I{totalRow})
   function ejecutarGenerarOrdenPDF() {
+    commitPendingEditor();
     const ws = workbook.sheets['PO Nuevo'];
     const totalRow = getPONuevoTotalRow();
     const lastProdRow = totalRow - 1;
@@ -1565,6 +1572,7 @@
   }
 
   async function enviarOrdenPorCorreo() {
+    commitPendingEditor();
     const button = document.getElementById('btnSendOrder');
     if (!button) return;
     const isPassingSheet = emailSendMode === 'passing';
@@ -1699,6 +1707,7 @@
 
   // MACRO 7: Módulo1.bas -> Public Sub Generar_PDF_Passing_Sheet()
   function ejecutarPdfPassingSheet() {
+    commitPendingEditor();
     const ws = workbook.sheets['PASSING SHEET'];
     const html = `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;">
