@@ -1,6 +1,15 @@
+require('dotenv').config();
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const {
+  closeDatabase,
+  getWorkbook,
+  isDatabaseConfigured,
+  resetWorkbook,
+  saveWorkbook
+} = require('./database');
 
 const PORT = process.env.PORT || 3050;
 const ROOT_DIR = __dirname;
@@ -19,63 +28,79 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(payload));
+}
+
+function readLocalWorkbook() {
+  const targetFile = fs.existsSync(STATE_FILE) ? STATE_FILE : INITIAL_FILE;
+  return JSON.parse(fs.readFileSync(targetFile, 'utf8'));
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 50 * 1024 * 1024) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(parsedUrl.pathname);
 
   // API: Get Workbook State
   if (pathname === '/api/workbook' && req.method === 'GET') {
     try {
-      const targetFile = fs.existsSync(STATE_FILE) ? STATE_FILE : INITIAL_FILE;
-      const content = fs.readFileSync(targetFile, 'utf-8');
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(content);
+      const workbook = isDatabaseConfigured() ? await getWorkbook() : readLocalWorkbook();
+      sendJson(res, 200, workbook);
     } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message }));
+      sendJson(res, 500, { error: err.message });
     }
     return;
   }
 
   // API: Save Workbook State
   if (pathname === '/api/workbook' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => {
-      body += chunk;
-      if (body.length > 50 * 1024 * 1024) req.destroy();
-    });
-    req.on('end', () => {
-      try {
-        const parsed = JSON.parse(body);
-        fs.writeFileSync(STATE_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true, savedAt: new Date().toISOString() }));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+    try {
+      const parsed = JSON.parse(await readRequestBody(req));
+      if (isDatabaseConfigured()) {
+        sendJson(res, 200, await saveWorkbook(parsed));
+      } else {
+        fs.writeFileSync(STATE_FILE, JSON.stringify(parsed, null, 2), 'utf8');
+        sendJson(res, 200, { ok: true, savedAt: new Date().toISOString(), storage: 'json-local' });
       }
-    });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
     return;
   }
 
   // API: Reset Workbook to Initial .xlsm State
   if (pathname === '/api/reset' && req.method === 'POST') {
     try {
-      if (fs.existsSync(STATE_FILE)) {
-        fs.unlinkSync(STATE_FILE);
+      if (isDatabaseConfigured()) {
+        sendJson(res, 200, await resetWorkbook());
+      } else {
+        if (fs.existsSync(STATE_FILE)) fs.unlinkSync(STATE_FILE);
+        sendJson(res, 200, readLocalWorkbook());
       }
-      const content = fs.readFileSync(INITIAL_FILE, 'utf-8');
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(content);
     } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message }));
+      sendJson(res, 500, { error: err.message });
     }
     return;
   }
 
   // Serve Static Files
-  let filePath = pathname === '/' ? path.join(ROOT_DIR, 'index.html') : path.join(ROOT_DIR, pathname);
+  const filePath = pathname === '/' ? path.join(ROOT_DIR, 'index.html') : path.join(ROOT_DIR, pathname);
   if (!filePath.startsWith(ROOT_DIR)) {
     res.writeHead(403);
     res.end('Forbidden');
@@ -94,8 +119,17 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(`  SISTEMA EXCEL: ORDENES WHOLESALE (Pacifica Farms)`);
+  console.log('====================================================');
+  console.log('  SISTEMA EXCEL: ORDENES WHOLESALE (Pacifica Farms)');
   console.log(`  URL: http://localhost:${PORT}`);
-  console.log(`====================================================`);
+  console.log(`  Almacenamiento: ${isDatabaseConfigured() ? 'Neon PostgreSQL' : 'JSON local (DATABASE_URL no configurada)'}`);
+  console.log('====================================================');
 });
+
+async function shutdown() {
+  await closeDatabase();
+  server.close(() => process.exit(0));
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
