@@ -1,0 +1,13 @@
+{
+  "name": "ordenes-wholesale",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema local de órdenes wholesale basado en un libro Excel.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

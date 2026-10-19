@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PEDIDO Suzy - Mex y Can USA 08-18-2026 (7).xlsm — Excel Wholesale System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- TOP EXCEL TITLE BAR -->
+  <header class="excel-titlebar no-print">
+    <div class="titlebar-left">
+      <div class="excel-app-icon" title="Sistema Excel Wholesale">X</div>
+      <div class="quick-access-bar">
+        <button class="qa-btn" id="btnUndo" title="Deshacer (Ctrl+Z)" disabled>↶</button>
+        <button class="qa-btn" id="btnRedo" title="Rehacer (Ctrl+Y)" disabled>↷</button>
+      </div>
+      <div class="header-primary-actions">
+        <button type="button" class="header-action-btn btn-generar-orden" id="btnVisualGenerarOrden">
+          <span class="btn-dot"></span>
+          Generar Orden
+        </button>
+        <button type="button" class="header-action-btn btn-generar-passing" id="btnVisualGenerarPassing">
+          <span class="btn-dot"></span>
+          Generar Passing Sheet
+        </button>
+      </div>
+    </div>
+
+    <div class="titlebar-right">
+      <button class="top-util-btn" id="btnExportCsv" title="Descargar hoja activa en formato CSV compatible con Excel">⬇ Exportar CSV</button>
+      <button class="top-util-btn danger-subtle" id="btnResetWorkbook" title="Restaurar los datos originales del archivo .xlsm">↺ Restaurar Original</button>
+    </div>
+  </header>
+
+  <!-- EXCEL FORMULA BAR -->
+  <section class="excel-formulabar no-print">
+    <div class="name-box-wrapper">
+      <input type="text" id="cellNameBox" class="cell-name-box" value="F11" title="Referencia de celda activa (escribe ej. B22 y presiona Enter)" />
+    </div>
+    <div class="formula-fx-badge" title="Barra de Fórmulas Excel">fx</div>
+    <div class="formula-input-wrapper">
+      <input type="text" id="formulaInput" class="formula-input" placeholder="Selecciona una celda o escribe un valor / fórmula (=VLOOKUP, =INDEX, =SUM...)" autocomplete="off" />
+      <span id="cellMetaBadge" class="cell-meta-badge" style="display:none;"></span>
+    </div>
+  </section>
+
+  <!-- MAIN SPREADSHEET VIEWPORT -->
+  <main class="spreadsheet-viewport no-print" id="spreadsheetViewport">
+    <div class="sheet-canvas-wrapper" id="sheetCanvasWrapper">
+      <table class="excel-grid" id="excelGrid">
+        <thead id="excelGridHead"></thead>
+        <tbody id="excelGridBody"></tbody>
+      </table>
+
+      <!-- Floating Dropdown Portal for Data Validation Lists (F11 Customer, B22:B41 Flowers) -->
+      <div id="validationDropdown" class="validation-dropdown" style="display:none;">
+        <div class="validation-search-header">
+          <input type="text" id="validationSearchInput" placeholder="Escribe para filtrar opciones..." autocomplete="off" />
+          <span class="validation-count" id="validationCountBadge">0</span>
+        </div>
+        <div class="validation-list" id="validationList"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- BOTTOM SHEET TABS + STATUS BAR -->
+  <footer class="excel-footer no-print">
+    <div class="sheet-tabs-bar">
+      <div class="tab-scroll-btns">
+        <button class="tab-nav-btn" id="btnPrevSheet" title="Hoja anterior">◀</button>
+        <button class="tab-nav-btn" id="btnNextSheet" title="Siguiente hoja">▶</button>
+      </div>
+      <div class="sheet-tabs-list" id="sheetTabsList">
+        <button class="sheet-tab active" data-sheet="PO Nuevo">
+          <span class="tab-color-dot green"></span>PO Nuevo
+        </button>
+        <button class="sheet-tab" data-sheet="DayOrders">
+          <span class="tab-color-dot blue"></span>DayOrders
+        </button>
+        <button class="sheet-tab" data-sheet="Productos">
+          <span class="tab-color-dot amber"></span>Productos
+        </button>
+        <button class="sheet-tab" data-sheet="Transporte">
+          <span class="tab-color-dot purple"></span>Transporte
+        </button>
+        <button class="sheet-tab" data-sheet="PASSING SHEET">
+          <span class="tab-color-dot teal"></span>PASSING SHEET
+        </button>
+      </div>
+    </div>
+
+    <div class="excel-statusbar">
+      <div class="status-left">
+        <span id="statusMode">Listo</span>
+        <span class="status-sep">|</span>
+        <span id="statusFormulaInfo">Motor de fórmulas activo (668 fórmulas vinculadas)</span>
+      </div>
+      <div class="status-right">
+        <div class="status-metrics" id="statusMetrics">
+          <span id="metricCount">Recuento: 1</span>
+          <span id="metricSum">Suma: $0.00</span>
+          <span id="metricBoxes">Total Cajas PO: 3</span>
+        </div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="btnZoomOut" title="Reducir zoom">−</button>
+          <span id="zoomLabel">80%</span>
+          <button class="zoom-btn" id="btnZoomIn" title="Aumentar zoom">+</button>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL: VISTA PREVIA E IMPRESIÓN / DESCARGA PDF (MACROS 3, 4, 5, 6, MÓDULO 1) -->
+  <div id="pdfModalOverlay" class="modal-overlay no-print" style="display:none;">
+    <div class="modal-card pdf-modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="pdfModalTitle">Vista Previa de Documento PDF</h3>
+          <p class="modal-subtitle" id="pdfModalSubtitle">Archivo sugerido: PO_54444.pdf</p>
+        </div>
+        <div class="modal-header-actions">
+          <label class="filename-label">
+            Nombre PDF:
+            <input type="text" id="pdfFilenameInput" class="pdf-filename-input" />
+          </label>
+          <button class="btn-primary-print" id="btnPrintPdfNow">🖨️ Guardar como PDF / Imprimir</button>
+          <button class="btn-close-modal" id="btnClosePdfModal">✕</button>
+        </div>
+      </div>
+      <div class="modal-body pdf-preview-scroll">
+        <div id="pdfPreviewContainer" class="pdf-sheet-page"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EJECUTAR HOMOLOGEADOS / VERIFICADOR DE BOM -->
+  <div id="bomModalOverlay" class="modal-overlay no-print" style="display:none;">
+    <div class="modal-card bom-modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>Verificador de Productos y Homologados (BOM)</h3>
+          <p class="modal-subtitle">Revisa las líneas de PO Nuevo contra el catálogo de Productos (234 registros)</p>
+        </div>
+        <div class="modal-header-actions">
+          <a href="https://atajos-centro-floricultor.onrender.com/#wholesale" target="_blank" rel="noopener" class="btn-external-link">
+            🌐 Abrir Centro Floricultor (Web)
+          </a>
+          <button class="btn-close-modal" id="btnCloseBomModal">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" id="bomModalBody"></div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="toast-container no-print"></div>
+
+  <!-- PRINT-ONLY AREA -->
+  <div id="printOnlyRoot" class="print-only"></div>
+
+  <script src="formulaEngine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
