@@ -118,7 +118,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('====================================================');
   console.log('  SISTEMA EXCEL: ORDENES WHOLESALE (Pacifica Farms)');
   console.log(`  URL: http://localhost:${PORT}`);
