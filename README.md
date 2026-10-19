@@ -19,12 +19,16 @@ También se puede iniciar en Windows con `INICIAR_SISTEMA.bat`.
 - `formulaEngine.js`: cálculo de fórmulas del libro.
 - `server.js`: servidor HTTP y API de guardado.
 - `posco-export.js`: crea el Excel compatible con POSCO desde `PO Nuevo` y detecta productos pendientes de BOM/BOOM.
+- `order-pdf.js`: crea el PDF de la orden para adjuntarlo al correo.
+- `email-sender.js`: envía PDF, POSCO y el detalle de BOM mediante Microsoft Graph.
 - `data/initial_workbook.json`: datos iniciales.
 - `data/workbook_state.json`: estado guardado actualmente.
 
 ## Generar Orden y Passing Sheet
 
-El botón `Generar Orden` abre la orden en una vista lista para usar `Imprimir` y preparar el PDF, además de preparar el Excel `POSCO Wholesale` con las columnas requeridas para cargarlo en POSCO. El archivo se descarga únicamente al pulsar `Excel POSCO`. Si alguna línea tiene estado `PENDIENTE DE BOM` o `PENDIENTE DE BOOM`, el sistema muestra la propuesta de BOM y permite revisarla desde el catálogo de Productos.
+El botón `Generar Orden` abre la orden en una vista lista para usar `Imprimir` y prepara el PDF y el Excel `POSCO Wholesale` con las columnas requeridas para cargarlo en POSCO. El botón `Enviar` manda ambos archivos por correo. Si alguna línea tiene estado `PENDIENTE DE BOM` o `PENDIENTE DE BOOM`, el sistema muestra la propuesta de BOM y la incluye en el mensaje.
+
+El botón `Enviar` aparece después de generar una orden y manda por Microsoft Graph el PDF, el Excel POSCO y los pendientes de BOM/BOOM en el cuerpo del mensaje. Configura en Render `SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`, `SHAREPOINT_CLIENT_SECRET`, `MAIL_SENDER` y `WHOLESALE_PDF_RECIPIENTS`. Los tres primeros nombres se conservan para reutilizar las credenciales del bot de referencia. La aplicación de Microsoft Entra debe tener permiso de aplicación `Mail.Send` con consentimiento de administrador.
 
 El botón `Generar Passing Sheet` prepara la vista imprimible del Passing Sheet.
 

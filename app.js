@@ -17,7 +17,6 @@
   let inlineEditor = null;
   let zoomLevel = 80;
   let searchQuery = '';
-  let poscoDownload = null;
 
   // Filters for DayOrders
   let dayFilterDate = 'ALL';
@@ -185,30 +184,6 @@
       });
     }
     return pending;
-  }
-
-  function downloadBlob(blob, filename) {
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-  }
-
-  function responseFilename(contentDisposition, fallback) {
-    const header = contentDisposition || '';
-    const encoded = header.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-    if (encoded) {
-      try {
-        return decodeURIComponent(encoded);
-      } catch {
-        return encoded;
-      }
-    }
-    return header.match(/filename="([^"]+)"/i)?.[1] || fallback;
   }
 
   function getPONuevoTotalRow() {
@@ -1549,16 +1524,11 @@
         throw new Error(detail);
       }
 
-      const blob = await response.blob();
-      const filename = responseFilename(
-        response.headers.get('Content-Disposition'),
-        'POSCO_Wholesale.xlsx'
-      );
-      poscoDownload = { blob, filename };
-      const downloadButton = document.getElementById('btnDownloadPosco');
-      if (downloadButton) {
-        downloadButton.style.display = 'inline-flex';
-        downloadButton.disabled = false;
+      await response.arrayBuffer();
+      const sendButton = document.getElementById('btnSendOrder');
+      if (sendButton) {
+        sendButton.style.display = 'inline-flex';
+        sendButton.disabled = false;
       }
 
       let pending = getPendingBomRows();
@@ -1574,13 +1544,13 @@
       const rowCount = response.headers.get('X-POSCO-Rows') || '0';
       if (pending.length > 0) {
         showToast(
-          `Orden generada: PDF listo y Excel POSCO preparado (${rowCount} línea(s)). Hay ${pending.length} producto(s) PENDIENTE(S) DE BOM.`,
+          `Orden generada: PDF y formato POSCO listos (${rowCount} línea(s)). Hay ${pending.length} producto(s) PENDIENTE(S) DE BOM. Pulsa Enviar para mandar todo.`,
           true,
           abrirModalHomologeados,
           'Revisar BOM'
         );
       } else {
-        showToast(`Orden generada: PDF listo y Excel POSCO preparado (${rowCount} línea(s)). Pulsa Excel POSCO para descargarlo.`);
+        showToast(`Orden generada: PDF y formato POSCO listos (${rowCount} línea(s)). Pulsa Enviar para mandar todo por correo.`);
       }
     } catch (error) {
       showToast(`No se pudo generar el Excel POSCO: ${error.message}`, true);
@@ -1589,6 +1559,36 @@
         button.disabled = false;
         button.querySelector('.btn-dot')?.classList.remove('is-busy');
       }
+    }
+  }
+
+  async function enviarOrdenPorCorreo() {
+    const button = document.getElementById('btnSendOrder');
+    if (!button) return;
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = '✉️ Enviando...';
+    try {
+      const response = await fetch('/api/order/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workbook)
+      });
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+      if (!response.ok) throw new Error(payload.error || 'No se pudo enviar la orden por correo.');
+      const recipients = Array.isArray(payload.sentTo) ? payload.sentTo.join(', ') : 'los destinatarios configurados';
+      const pendingMessage = payload.pendingBom > 0 ? ` BOM pendiente incluido: ${payload.pendingBom}.` : '';
+      showToast(`Correo enviado a ${recipients}.${pendingMessage}`);
+    } catch (error) {
+      showToast(`No se pudo enviar la orden: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalLabel;
     }
   }
 
@@ -1735,11 +1735,10 @@
     document.getElementById('pdfFilenameInput').value = filename;
     document.getElementById('pdfPreviewContainer').innerHTML = contentHtml;
     document.getElementById('printOnlyRoot').innerHTML = contentHtml;
-    poscoDownload = null;
-    const poscoButton = document.getElementById('btnDownloadPosco');
-    if (poscoButton) {
-      poscoButton.style.display = 'none';
-      poscoButton.disabled = true;
+    const sendButton = document.getElementById('btnSendOrder');
+    if (sendButton) {
+      sendButton.style.display = 'none';
+      sendButton.disabled = true;
     }
     document.getElementById('pdfModalOverlay').style.display = 'flex';
   }
@@ -2599,8 +2598,8 @@
     document.getElementById('btnVisualGenerarPassing').addEventListener('click', () => {
       ejecutarPdfPassingSheet();
     });
-    document.getElementById('btnDownloadPosco').addEventListener('click', () => {
-      if (poscoDownload) downloadBlob(poscoDownload.blob, poscoDownload.filename);
+    document.getElementById('btnSendOrder').addEventListener('click', () => {
+      void enviarOrdenPorCorreo();
     });
     document.getElementById('btnSaveManual')?.addEventListener('click', () => {
       saveWorkbookState();
