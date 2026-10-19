@@ -1560,7 +1560,6 @@
         downloadButton.style.display = 'inline-flex';
         downloadButton.disabled = false;
       }
-      downloadBlob(blob, filename);
 
       let pending = getPendingBomRows();
       const pendingHeader = response.headers.get('X-BOM-Pending');
@@ -1575,13 +1574,13 @@
       const rowCount = response.headers.get('X-POSCO-Rows') || '0';
       if (pending.length > 0) {
         showToast(
-          `Orden generada: PDF listo y Excel POSCO descargado (${rowCount} línea(s)). Hay ${pending.length} producto(s) PENDIENTE(S) DE BOM.`,
+          `Orden generada: PDF listo y Excel POSCO preparado (${rowCount} línea(s)). Hay ${pending.length} producto(s) PENDIENTE(S) DE BOM.`,
           true,
           abrirModalHomologeados,
           'Revisar BOM'
         );
       } else {
-        showToast(`Orden generada: PDF listo y Excel POSCO descargado (${rowCount} línea(s)).`);
+        showToast(`Orden generada: PDF listo y Excel POSCO preparado (${rowCount} línea(s)). Pulsa Excel POSCO para descargarlo.`);
       }
     } catch (error) {
       showToast(`No se pudo generar el Excel POSCO: ${error.message}`, true);
