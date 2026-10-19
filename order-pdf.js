@@ -81,6 +81,7 @@ function drawTableRow(doc, columns, values, y, height) {
   doc.font('Helvetica').fontSize(8).fillColor('#111827');
   columns.forEach(column => {
     doc.rect(x, y, column.width, height).fillAndStroke('#ffffff', '#64748b');
+    doc.fillColor('#111827');
     drawText(doc, values[column.key], x, y, column.width, { height, align: column.align });
     x += column.width;
   });
