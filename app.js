@@ -584,11 +584,18 @@
 
       if (row >= 22 && row <= lastProdRow) {
         if (colStr === 'A') return row === 22 ? '=+A9' : `=IF(B${row}="","",$A$9)`;
-        if (colStr === 'C') return `=IF(ISERROR(INDEX(Productos!$E$1:$E$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0))),"",INDEX(Productos!$E$1:$E$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0)))`;
-        if (colStr === 'D') return `=IF(ISERROR(INDEX(Productos!$H$1:$H$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0))),"",INDEX(Productos!$H$1:$H$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0)))`;
-        if (colStr === 'E') return `=IF(ISERROR(INDEX(Productos!$G$1:$G$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0))),"",INDEX(Productos!$G$1:$G$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0)))`;
-        if (colStr === 'F') return `=IF(ISERROR(INDEX(Productos!$I$1:$I$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0))),"",INDEX(Productos!$I$1:$I$${prodMax},MATCH(B${row},Productos!$F$1:$F$${prodMax},0)))`;
-        if (colStr === 'G') return `=IF(ISERROR(INDEX(Productos!$L$1:$L$${prodMax},MATCH(1,INDEX((Productos!$K$1:$K$${prodMax}=F${row})*(Productos!$L$1:$L$${prodMax}<>""),0),0))),"",INDEX(Productos!$L$1:$L$${prodMax},MATCH(1,INDEX((Productos!$K$1:$K$${prodMax}=F${row})*(Productos!$L$1:$L$${prodMax}<>""),0),0)))`;
+        const selectedProductRow = `IF(PRODUCTROW(B${row})>0,PRODUCTROW(B${row}),`;
+        const descriptionMatch = `MATCH(B${row},Productos!$F$1:$F$${prodMax},0)`;
+        const boxDimensionMatch = `MATCH(1,INDEX((Productos!$K$1:$K$${prodMax}=F${row})*(Productos!$L$1:$L$${prodMax}<>""),0),0)`;
+        const lookupByRow = (range, fallbackMatch) => {
+          const rowExpression = `${selectedProductRow}${fallbackMatch})`;
+          return `=IF(ISERROR(INDEX(${range},${rowExpression})),"",INDEX(${range},${rowExpression}))`;
+        };
+        if (colStr === 'C') return lookupByRow(`Productos!$E$1:$E$${prodMax}`, descriptionMatch);
+        if (colStr === 'D') return lookupByRow(`Productos!$H$1:$H$${prodMax}`, descriptionMatch);
+        if (colStr === 'E') return lookupByRow(`Productos!$G$1:$G$${prodMax}`, descriptionMatch);
+        if (colStr === 'F') return lookupByRow(`Productos!$I$1:$I$${prodMax}`, descriptionMatch);
+        if (colStr === 'G') return lookupByRow(`Productos!$L$1:$L$${prodMax}`, boxDimensionMatch);
         if (colStr === 'J') return `=IF(B${row}="","",IF(COUNTIF(Productos!$F$1:$F$${prodMax},B${row})=0,"PENDIENTE DE BOM",""))`;
       }
     } else if (sheetName === 'DayOrders' && row >= 2 && colStr === 'P') {
@@ -654,11 +661,19 @@
   }
 
   // Update Cell Value or Formula
-  function setCellContent(sheetName, coord, rawInput) {
+  function setCellContent(sheetName, coord, rawInput, metadata = null) {
     const sheet = workbook.sheets[sheetName];
     if (!sheet) return;
     pushUndoState();
     applyCellValueRaw(sheetName, coord, rawInput);
+    if (
+      metadata?.productRow &&
+      sheetName === 'PO Nuevo' &&
+      parseCoord(coord)?.colStr === 'B' &&
+      sheet.cells[coord]
+    ) {
+      sheet.cells[coord].productRow = Number(metadata.productRow);
+    }
     engine.recalculateAll();
     if (sheetName === 'DayOrders') populateDayOrdersFilters();
     renderSheet();
@@ -706,6 +721,7 @@
         rowCells.push({
           v: rawVal,
           f: (!hasDefaultFormula && cellObj?.f) ? cellObj.f : null,
+          productRow: cellObj?.productRow || null,
           srcRow: r,
           srcCol: c
         });
@@ -766,6 +782,17 @@
           ? (item.f ? item.f : item.v)
           : item;
         applyCellValueRaw(activeSheet, destCoord, rawToWrite);
+        if (
+          fromInternal &&
+          item &&
+          typeof item === 'object' &&
+          item.productRow &&
+          activeSheet === 'PO Nuevo' &&
+          parseCoord(destCoord)?.colStr === 'B' &&
+          sheet.cells[destCoord]
+        ) {
+          sheet.cells[destCoord].productRow = Number(item.productRow);
+        }
       }
     }
 
@@ -911,16 +938,18 @@
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
         let val = input.value;
+        let selectedItem = null;
         if (isDropOpen && val.trim() !== '') {
           const activeItem = validationList.querySelector('.validation-item.active') ||
                              validationList.querySelector('.validation-item');
           if (activeItem) {
-            val = activeItem.getAttribute('data-val');
+            selectedItem = getValidationItem(activeItem, val);
+            val = selectedItem.value;
           }
         }
         hideValidationDropdown();
         closeInlineEditor(false);
-        setCellContent(activeSheet, coord, val);
+        setCellContent(activeSheet, coord, val, getValidationMetadata(coord, selectedItem));
         if (e.key === 'Enter') moveSelection(1, 0);
         else moveSelection(0, e.shiftKey ? -1 : 1);
       } else if (e.key === 'Escape') {
@@ -1202,6 +1231,28 @@
   let currentDropdownItems = [];
   let activeValidationIdx = 0;
 
+  function getValidationItem(element, fallbackValue = '') {
+    const sourceRow = Number(element?.getAttribute('data-source-row'));
+    if (Number.isInteger(sourceRow) && sourceRow > 0) {
+      const sourceItem = currentDropdownItems.find(item => item.sourceRow === sourceRow);
+      if (sourceItem) return sourceItem;
+    }
+    const value = element?.getAttribute('data-val') ?? fallbackValue;
+    return currentDropdownItems.find(item => item.value === value) || { value };
+  }
+
+  function getValidationMetadata(targetCoord, item) {
+    const type = isValidationCell(activeSheet, targetCoord);
+    return type === 'PRODUCT' && item?.sourceRow
+      ? { productRow: item.sourceRow }
+      : null;
+  }
+
+  function commitValidationItem(targetCoord, element, fallbackValue = '') {
+    const item = getValidationItem(element, fallbackValue);
+    setCellContent(activeSheet, targetCoord, item.value, getValidationMetadata(targetCoord, item));
+  }
+
   function openValidationDropdown(coord, type, focusSearchBox = true, initialFilter = '') {
     const td = gridBody.querySelector(`td[data-coord="${coord}"]`);
     if (!td) return;
@@ -1219,7 +1270,8 @@
           const city = String(trSheet.cells[`L${r}`]?.v || '').replace(/\s+/g, ' ').trim();
           items.push({
             value: String(cust),
-            sub: [carrier, city].filter(Boolean).join(' • ')
+            sub: [carrier, city].filter(Boolean).join(' • '),
+            sourceRow: r
           });
         }
       }
@@ -1235,7 +1287,8 @@
           const pack = prSheet.cells[`G${r}`]?.v ?? '';
           items.push({
             value: String(desc),
-            sub: `${color ? color + ' | ' : ''}St:${stems} Bu:${pack} ${box}`
+            sub: `${color ? color + ' | ' : ''}St:${stems} Bu:${pack} ${box}`,
+            sourceRow: r
           });
         }
       }
@@ -1284,7 +1337,7 @@
     validationCountBadge.textContent = `${filtered.length} opciones`;
     validationList.innerHTML = filtered
       .map(
-        (it, idx) => `<div class="validation-item${idx === 0 ? ' active' : ''}" data-idx="${idx}" data-val="${escapeHtml(it.value)}">
+        (it, idx) => `<div class="validation-item${idx === 0 ? ' active' : ''}" data-idx="${idx}" data-source-row="${it.sourceRow ?? ''}" data-val="${escapeHtml(it.value)}">
           <span class="validation-item-main">${escapeHtml(it.value)}</span>
           <span class="validation-item-sub">${escapeHtml(it.sub)}</span>
         </div>`
@@ -2280,11 +2333,10 @@
         const active = validationList.querySelector('.validation-item.active') ||
                        validationList.querySelector('.validation-item');
         if (active && currentDropdownCoord) {
-          const val = active.getAttribute('data-val');
           const targetCoord = currentDropdownCoord;
           hideValidationDropdown();
           closeInlineEditor(false);
-          setCellContent(activeSheet, targetCoord, val);
+          commitValidationItem(targetCoord, active);
         }
       }
     });
@@ -2293,11 +2345,10 @@
       const item = e.target.closest('.validation-item');
       if (!item || !currentDropdownCoord) return;
       e.preventDefault();
-      const val = item.getAttribute('data-val');
       const targetCoord = currentDropdownCoord;
       hideValidationDropdown();
       closeInlineEditor(false);
-      setCellContent(activeSheet, targetCoord, val);
+      commitValidationItem(targetCoord, item);
     });
 
     // Formula Bar & Name Box (supports single coord like F11 or range like B22:I30)

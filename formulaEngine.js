@@ -418,6 +418,17 @@
         }
       }
 
+      // Returns the catalog row remembered when a product variant was chosen
+      // from the PO Nuevo product dropdown. This lets formulas distinguish
+      // duplicate descriptions that have different colors or box settings.
+      if (fnName === 'PRODUCTROW') {
+        const parsed = parseCoord(String(args[0] || '').trim());
+        if (!parsed) return 0;
+        const sheet = this.workbook.sheets[currentSheet];
+        const productRow = Number(sheet?.cells?.[parsed.coord]?.productRow);
+        return Number.isInteger(productRow) && productRow > 0 ? productRow : 0;
+      }
+
       if (fnName === 'ISERROR') {
         const val = this.evalExpr(args[0] || '', currentSheet);
         return Boolean(val && typeof val === 'object' && val.__error) ||
