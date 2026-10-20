@@ -66,8 +66,10 @@
       }
     }
 
+    const formulasMigrated = migratePONuevoDefaultFormulas();
     engine = new window.FormulaEngine(workbook);
     engine.recalculateAll();
+    if (formulasMigrated) saveWorkbookState();
 
     sheetCanvasWrapper.style.zoom = `${zoomLevel}%`;
     const zLbl = document.getElementById('zoomLabel');
@@ -595,13 +597,39 @@
         if (colStr === 'D') return lookupByRow(`Productos!$H$1:$H$${prodMax}`, descriptionMatch);
         if (colStr === 'E') return lookupByRow(`Productos!$G$1:$G$${prodMax}`, descriptionMatch);
         if (colStr === 'F') return lookupByRow(`Productos!$I$1:$I$${prodMax}`, descriptionMatch);
-        if (colStr === 'G') return lookupByRow(`Productos!$L$1:$L$${prodMax}`, boxDimensionMatch);
+        // BOX DIMENSION comes from the box-code mapping table (K:L), not from
+        // the selected product row. Several products share the same box type.
+        if (colStr === 'G') {
+          return `=IF(ISERROR(INDEX(Productos!$L$1:$L$${prodMax},${boxDimensionMatch})),"",INDEX(Productos!$L$1:$L$${prodMax},${boxDimensionMatch}))`;
+        }
         if (colStr === 'J') return `=IF(B${row}="","",IF(COUNTIF(Productos!$F$1:$F$${prodMax},B${row})=0,"PENDIENTE DE BOM",""))`;
       }
     } else if (sheetName === 'DayOrders' && row >= 2 && colStr === 'P') {
       return `=+O${row}*N${row}*K${row}`;
     }
     return null;
+  }
+
+  function migratePONuevoDefaultFormulas() {
+    const sheet = workbook?.sheets?.['PO Nuevo'];
+    if (!sheet) return false;
+    const totalRow = getPONuevoTotalRow();
+    const changedRows = totalRow - 1;
+    let changed = false;
+    for (let row = 22; row <= changedRows; row++) {
+      const hasProduct = String(sheet.cells[`B${row}`]?.v ?? '').trim() !== '';
+      for (const col of ['A', 'C', 'D', 'E', 'F', 'G', 'J']) {
+        const coord = `${col}${row}`;
+        const expected = getDefaultFormula('PO Nuevo', coord);
+        if (!expected) continue;
+        const cell = sheet.cells[coord];
+        if ((cell?.f || hasProduct) && cell?.f !== expected) {
+          sheet.cells[coord] = { ...(cell || {}), f: expected, v: '' };
+          changed = true;
+        }
+      }
+    }
+    return changed;
   }
 
   function restoreRowFormulasPONuevo(sheet, row) {
