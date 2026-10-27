@@ -22,7 +22,10 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function parseRecipients(value = process.env.WHOLESALE_PDF_RECIPIENTS || DEFAULT_RECIPIENTS) {
+function parseRecipients(
+  value = process.env.WHOLESALE_PDF_RECIPIENTS || DEFAULT_RECIPIENTS,
+  variableName = 'WHOLESALE_PDF_RECIPIENTS',
+) {
   const recipients = [];
   const seen = new Set();
   for (const raw of String(value).split(/[;\r\n]+/)) {
@@ -39,7 +42,7 @@ function parseRecipients(value = process.env.WHOLESALE_PDF_RECIPIENTS || DEFAULT
     seen.add(key);
     recipients.push({ name: name || address.split('@')[0], address });
   }
-  if (!recipients.length) throw new Error('WHOLESALE_PDF_RECIPIENTS debe tener al menos un destinatario.');
+  if (!recipients.length) throw new Error(`${variableName} debe tener al menos un destinatario.`);
   return recipients;
 }
 
@@ -181,7 +184,14 @@ async function sendWholesaleEmail({ workbook, pdfBuffer, pdfFileName, poscoBuffe
 
 async function sendPassingSheetEmail({ workbook, pdfBuffer, pdfFileName }) {
   const sender = requiredEnv('MAIL_SENDER');
-  const recipients = parseRecipients();
+  // Keep the previous variable as a safe fallback until Render receives the
+  // dedicated Passing Sheet variable.
+  const recipients = parseRecipients(
+    process.env.WHOLESALE_PASSING_SHEET_RECIPIENTS
+      || process.env.WHOLESALE_PDF_RECIPIENTS
+      || DEFAULT_RECIPIENTS,
+    'WHOLESALE_PASSING_SHEET_RECIPIENTS',
+  );
   const token = await graphToken();
   const results = [];
   for (const recipient of recipients) {
