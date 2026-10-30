@@ -29,9 +29,20 @@ function safePart(value, fallback) {
   return clean(value).replace(/[^A-Za-z0-9._ -]+/g, ' ').trim() || fallback;
 }
 
-function addField(doc, label, value, x, y, width) {
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#111827').text(`${label}:`, x, y, { continued: true });
-  doc.font('Helvetica').text(` ${clean(value) || '-'}`, { width });
+function drawTableRow(doc, label, value, x, y, labelWidth, valueWidth, height = 25, boldValue = false) {
+  const totalWidth = labelWidth + valueWidth;
+  doc.lineWidth(0.7).strokeColor('#334155').rect(x, y, totalWidth, height).stroke();
+  doc.moveTo(x + labelWidth, y).lineTo(x + labelWidth, y + height).stroke();
+  doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#111827').text(`${clean(label)}:`, x + 7, y + 7, {
+    width: labelWidth - 14,
+    height: height - 10,
+    ellipsis: true
+  });
+  doc.font(boldValue ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5).fillColor('#111827').text(clean(value) || '-', x + labelWidth + 7, y + 7, {
+    width: valueWidth - 14,
+    height: height - 10,
+    ellipsis: true
+  });
 }
 
 async function createPassingSheetPdf(workbook) {
@@ -56,46 +67,49 @@ async function createPassingSheetPdf(workbook) {
     doc.on('error', reject);
   });
 
-  const left = doc.page.margins.left;
-  const right = doc.page.width - doc.page.margins.right;
-  doc.font('Helvetica-Bold').fontSize(18).fillColor('#14532d').text('PACIFICA PRODUCE FARMS LLC', left, 52);
-  doc.font('Helvetica').fontSize(9).fillColor('#334155').text('PO Box 530990 • San Diego, CA 92154', left, 78);
-  doc.moveTo(left, 96).lineTo(right, 96).strokeColor('#14532d').lineWidth(1.5).stroke();
-  doc.font('Helvetica-Bold').fontSize(17).fillColor('#111827').text(`PASSING SHEET – ${farmShipTo}`, left, 120);
+  const pageLeft = doc.page.margins.left;
+  const pageRight = doc.page.width - doc.page.margins.right;
+  const sheetLeft = pageLeft + 16;
+  const sheetRight = pageRight - 16;
+  const sheetWidth = sheetRight - sheetLeft;
+  doc.lineWidth(0.7).strokeColor('#cbd5e1').rect(pageLeft, 36, pageRight - pageLeft, 650).stroke();
+  doc.font('Helvetica-Bold').fontSize(18).fillColor('#14532d').text('PACIFICA PRODUCE FARMS LLC', sheetLeft, 54);
+  doc.font('Helvetica').fontSize(8.5).fillColor('#334155').text('PO Box 530990 • San Diego, CA 92154', sheetLeft, 77);
+  doc.moveTo(sheetLeft, 94).lineTo(sheetRight, 94).strokeColor('#14532d').lineWidth(1.2).stroke();
+  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(`PASSING SHEET – ${farmShipTo}`, sheetLeft, 112);
   doc.font('Helvetica').fontSize(10).fillColor('#334155').text(
     clean(cellValue(sheet, 'A2')) || 'Please receive the following shipment and release it to the designated trucking line as instructed below.',
-    left,
-    150,
-    { width: right - left }
+    sheetLeft,
+    136,
+    { width: sheetWidth }
   );
 
-  const boxTop = 195;
-  doc.roundedRect(left, boxTop, right - left, 210, 4).fillAndStroke('#f8fafc', '#cbd5e1');
-  addField(doc, 'Farm / Shipper', cellValue(sheet, 'B4'), left + 18, boxTop + 22, 300);
-  addField(doc, 'Customer Name', customer, left + 18, boxTop + 55, 300);
-  addField(doc, arrivalLabel.replace(/:$/, ''), formatDate(loadDate), left + 18, boxTop + 88, 300);
-  addField(doc, 'Release Date (Deliver to Trucking Line)', formatDate(cellValue(sheet, 'B7')), left + 18, boxTop + 121, 300);
-  addField(doc, 'Trucking Line', cellValue(sheet, 'B8'), left + 18, boxTop + 154, 300);
-  addField(doc, 'Account # (if applicable)', cellValue(sheet, 'B9'), left + 18, boxTop + 187, 300);
-  doc.font('Helvetica-Bold').fontSize(12).fillColor('#111827').text('Number of Boxes:', left + 340, boxTop + 88);
-  doc.font('Helvetica-Bold').fontSize(22).fillColor('#14532d').text(clean(cellValue(sheet, 'B10')) || '0', left + 340, boxTop + 116);
-
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions', left, 445);
-  [13, 14, 15].forEach((row, index) => {
-    const line = clean(cellValue(sheet, `B${row}`)) || ' ';
-    const y = 470 + index * 27;
-    doc.moveTo(left, y + 15).lineTo(right, y + 15).strokeColor('#64748b').lineWidth(0.6).stroke();
-    if (line !== ' ') doc.font('Helvetica').fontSize(10).fillColor('#334155').text(line, left + 4, y, { width: right - left - 8 });
+  const tableTop = 164;
+  const labelWidth = 270;
+  const valueWidth = sheetWidth - labelWidth;
+  const rows = [
+    ['Farm / Shipper', cellValue(sheet, 'B4'), false],
+    ['Customer Name', customer, true],
+    [arrivalLabel.replace(/:$/, ''), formatDate(loadDate), false],
+    ['Release Date (Deliver to Trucking Line)', formatDate(cellValue(sheet, 'B7')), false],
+    ['Trucking Line', cellValue(sheet, 'B8'), false],
+    ['Account # (if applicable)', cellValue(sheet, 'B9'), false],
+    ['Number of Boxes', clean(cellValue(sheet, 'B10')) || '0', true]
+  ];
+  rows.forEach(([label, value, boldValue], index) => {
+    drawTableRow(doc, label, value, sheetLeft, tableTop + index * 25, labelWidth, valueWidth, 25, boldValue);
   });
 
-  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', left, 585);
-  doc.text('Contact Phone: ______________________   Email: ______________________', left, 612);
-  doc.font('Helvetica').fontSize(8).fillColor('#64748b').text(
-    `Generado por ORDENES WHOLESALE • ${new Date().toLocaleString('en-US')}`,
-    left,
-    doc.page.height - 35,
-    { width: right - left, align: 'center' }
-  );
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 354);
+  [13, 14, 15].forEach((row, index) => {
+    const line = clean(cellValue(sheet, `B${row}`)) || ' ';
+    const y = 380 + index * 27;
+    doc.moveTo(sheetLeft, y + 15).lineTo(sheetRight, y + 15).strokeColor('#334155').lineWidth(0.6).stroke();
+    if (line !== ' ') doc.font('Helvetica').fontSize(10).fillColor('#334155').text(line, sheetLeft + 4, y, { width: sheetWidth - 8 });
+  });
+
+  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 486);
+  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 512);
   doc.end();
   return { buffer: await completed, fileName };
 }
