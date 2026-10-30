@@ -40,6 +40,7 @@ async function createPassingSheetPdf(workbook) {
 
   const customer = clean(cellValue(sheet, 'B5')) || 'Cliente';
   const loadDate = cellValue(sheet, 'B6');
+  const arrivalLabel = clean(cellValue(sheet, 'A6')) || 'Load Date (Arrival to Floral Trade):';
   const fileName = `Passing Sheet Wholesale - ${safePart(customer, 'Cliente')} - ${formatDate(loadDate).replace(/\//g, '-')}.pdf`;
   const doc = new PDFDocument({
     size: 'LETTER',
@@ -71,7 +72,7 @@ async function createPassingSheetPdf(workbook) {
   doc.roundedRect(left, boxTop, right - left, 210, 4).fillAndStroke('#f8fafc', '#cbd5e1');
   addField(doc, 'Farm / Shipper', cellValue(sheet, 'B4'), left + 18, boxTop + 22, 300);
   addField(doc, 'Customer Name', customer, left + 18, boxTop + 55, 300);
-  addField(doc, 'Load Date (Arrival to Floral Trade)', formatDate(loadDate), left + 18, boxTop + 88, 300);
+  addField(doc, arrivalLabel.replace(/:$/, ''), formatDate(loadDate), left + 18, boxTop + 88, 300);
   addField(doc, 'Release Date (Deliver to Trucking Line)', formatDate(cellValue(sheet, 'B7')), left + 18, boxTop + 121, 300);
   addField(doc, 'Trucking Line', cellValue(sheet, 'B8'), left + 18, boxTop + 154, 300);
   addField(doc, 'Account # (if applicable)', cellValue(sheet, 'B9'), left + 18, boxTop + 187, 300);

@@ -30,7 +30,7 @@
 
   // Protected formula columns in PO Nuevo rows 22..41 so pressing Delete clears input without breaking formulas
   const PO_FORMULA_COLS = new Set(['A', 'C', 'D', 'E', 'F', 'G', 'J']);
-  const PO_HEADER_FORMULA_COORDS = new Set(['E12', 'F15', 'F16', 'B19', 'H42', 'I42']);
+  const PO_HEADER_FORMULA_COORDS = new Set(['E12', 'F15', 'F16', 'B18', 'B19', 'H42', 'I42']);
 
   // DOM References
   const gridHead = document.getElementById('excelGridHead');
@@ -572,12 +572,17 @@
     if (!parsed) return null;
     const { colStr, row } = parsed;
 
+    if (sheetName === 'PASSING SHEET' && coord === 'A6') {
+      return `="Load Date (Arrival to "&'PO Nuevo'!B18&"):"`;
+    }
+
     if (sheetName === 'PO Nuevo') {
       const totalRow = getPONuevoTotalRow();
       const lastProdRow = totalRow - 1;
       const prodMax = Math.max(234, getLastRealRow('Productos'));
 
       if (coord === 'E12') return '=+VLOOKUP(F11,Transporte!A:L,12,FALSE)';
+      if (coord === 'B18') return '=IFERROR(VLOOKUP(F11,Transporte!A:M,13,FALSE),"")';
       if (coord === 'F15') return '=+VLOOKUP(F11,Transporte!A:K,9,FALSE)';
       if (coord === 'F16') return '=+VLOOKUP(F11,Transporte!A:K,10,FALSE)';
       if (coord === 'B19') return '=F19-1';
@@ -629,6 +634,22 @@
         }
       }
     }
+
+    const farmShipToFormula = getDefaultFormula('PO Nuevo', 'B18');
+    const farmShipToCell = sheet.cells.B18;
+    if (farmShipToFormula && farmShipToCell?.f !== farmShipToFormula) {
+      sheet.cells.B18 = { ...(farmShipToCell || {}), f: farmShipToFormula, v: farmShipToCell?.v ?? '' };
+      changed = true;
+    }
+
+    const passingSheet = workbook?.sheets?.['PASSING SHEET'];
+    const passingLabelFormula = getDefaultFormula('PASSING SHEET', 'A6');
+    const passingLabelCell = passingSheet?.cells?.A6;
+    if (passingSheet && passingLabelFormula && passingLabelCell?.f !== passingLabelFormula) {
+      passingSheet.cells.A6 = { ...(passingLabelCell || {}), f: passingLabelFormula, v: passingLabelCell?.v ?? '' };
+      changed = true;
+    }
+
     return changed;
   }
 
@@ -1790,6 +1811,7 @@
   function ejecutarPdfPassingSheet() {
     commitPendingEditor();
     const ws = workbook.sheets['PASSING SHEET'];
+    const arrivalLabel = ws.cells['A6']?.v || 'Load Date (Arrival to Floral Trade):';
     const html = `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;">
         <h2 style="font-size:18px;font-weight:800;margin-bottom:8px;">PASSING SHEET – FLORAL TRADE</h2>
@@ -1800,7 +1822,7 @@
           <tbody>
             <tr><td style="font-weight:700;width:55%;">Farm / Shipper:</td><td>${escapeHtml(ws.cells['B4']?.v ?? '')}</td></tr>
             <tr><td style="font-weight:700;">Customer Name:</td><td><strong>${escapeHtml(ws.cells['B5']?.v ?? '')}</strong></td></tr>
-            <tr><td style="font-weight:700;">Load Date (Arrival to Floral Trade):</td><td>${escapeHtml(formatDateDisplay(ws.cells['B6']?.v))}</td></tr>
+            <tr><td style="font-weight:700;">${escapeHtml(arrivalLabel)}</td><td>${escapeHtml(formatDateDisplay(ws.cells['B6']?.v))}</td></tr>
             <tr><td style="font-weight:700;">Release Date (Deliver to Trucking Line):</td><td>${escapeHtml(formatDateDisplay(ws.cells['B7']?.v))}</td></tr>
             <tr><td style="font-weight:700;">Trucking Line:</td><td>${escapeHtml(ws.cells['B8']?.v ?? '')}</td></tr>
             <tr><td style="font-weight:700;">Account # (if applicable):</td><td>${escapeHtml(ws.cells['B9']?.v ?? '')}</td></tr>
