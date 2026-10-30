@@ -1834,9 +1834,11 @@
     commitPendingEditor();
     const ws = workbook.sheets['PASSING SHEET'];
     const arrivalLabel = ws.cells['A6']?.v || 'Load Date (Arrival to Floral Trade):';
+    const farmShipTo = String(workbook?.sheets?.['PO Nuevo']?.cells?.B18?.v ?? '').trim() || 'FLORAL TRADE';
+    const passingTitle = `PASSING SHEET – ${farmShipTo}`;
     const html = `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;">
-        <h2 style="font-size:18px;font-weight:800;margin-bottom:8px;">PASSING SHEET – FLORAL TRADE</h2>
+        <h2 style="font-size:18px;font-weight:800;margin-bottom:8px;">${escapeHtml(passingTitle)}</h2>
         <p style="font-size:12.5px;color:#334155;margin-bottom:18px;">
           ${escapeHtml(ws.cells['A2']?.v || '')}
         </p>
@@ -1863,7 +1865,7 @@
         </div>
       </div>
     `;
-    openPdfPreviewModal('PASSING SHEET – FLORAL TRADE ($A$1:$B$18)', 'Passing_Sheet.pdf', html);
+    openPdfPreviewModal(`${passingTitle} ($A$1:$B$18)`, 'Passing_Sheet.pdf', html);
     emailSendMode = 'passing';
     const sendButton = document.getElementById('btnSendOrder');
     if (sendButton) {

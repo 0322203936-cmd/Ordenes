@@ -41,6 +41,7 @@ async function createPassingSheetPdf(workbook) {
   const customer = clean(cellValue(sheet, 'B5')) || 'Cliente';
   const loadDate = cellValue(sheet, 'B6');
   const arrivalLabel = clean(cellValue(sheet, 'A6')) || 'Load Date (Arrival to Floral Trade):';
+  const farmShipTo = clean(cellValue(workbook?.sheets?.['PO Nuevo'], 'B18')) || 'FLORAL TRADE';
   const fileName = `Passing Sheet Wholesale - ${safePart(customer, 'Cliente')} - ${formatDate(loadDate).replace(/\//g, '-')}.pdf`;
   const doc = new PDFDocument({
     size: 'LETTER',
@@ -60,7 +61,7 @@ async function createPassingSheetPdf(workbook) {
   doc.font('Helvetica-Bold').fontSize(18).fillColor('#14532d').text('PACIFICA PRODUCE FARMS LLC', left, 52);
   doc.font('Helvetica').fontSize(9).fillColor('#334155').text('PO Box 530990 • San Diego, CA 92154', left, 78);
   doc.moveTo(left, 96).lineTo(right, 96).strokeColor('#14532d').lineWidth(1.5).stroke();
-  doc.font('Helvetica-Bold').fontSize(17).fillColor('#111827').text('PASSING SHEET – FLORAL TRADE', left, 120);
+  doc.font('Helvetica-Bold').fontSize(17).fillColor('#111827').text(`PASSING SHEET – ${farmShipTo}`, left, 120);
   doc.font('Helvetica').fontSize(10).fillColor('#334155').text(
     clean(cellValue(sheet, 'A2')) || 'Please receive the following shipment and release it to the designated trucking line as instructed below.',
     left,
