@@ -52,7 +52,7 @@ async function createPassingSheetPdf(workbook) {
   const customer = clean(cellValue(sheet, 'B5')) || 'Cliente';
   const loadDate = cellValue(sheet, 'B6');
   const farmShipTo = clean(cellValue(workbook?.sheets?.['PO Nuevo'], 'B18')) || 'FLORAL TRADE';
-  const arrivalLabel = `Load Date (Arrival to ${farmShipTo}):`;
+  const arrivalLabel = 'Load Date (Arrival to Floral Trade):';
   const fileName = `Passing Sheet Wholesale - ${safePart(customer, 'Cliente')} - ${formatDate(loadDate).replace(/\//g, '-')}.pdf`;
   const doc = new PDFDocument({
     size: 'LETTER',
@@ -73,7 +73,7 @@ async function createPassingSheetPdf(workbook) {
   const sheetRight = pageRight - 16;
   const sheetWidth = sheetRight - sheetLeft;
   doc.lineWidth(0.7).strokeColor('#cbd5e1').rect(pageLeft, 36, pageRight - pageLeft, 570).stroke();
-  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(`PASSING SHEET – ${farmShipTo}`, sheetLeft, 54);
+  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text('PASSING SHEET – FLORAL TRADE', sheetLeft, 54);
   doc.font('Helvetica').fontSize(10).fillColor('#334155').text(
     clean(cellValue(sheet, 'A2')) || 'Please receive the following shipment and release it to the designated trucking line as instructed below.',
     sheetLeft,
@@ -90,6 +90,7 @@ async function createPassingSheetPdf(workbook) {
     [arrivalLabel.replace(/:$/, ''), formatDate(loadDate), false],
     ['Release Date (Deliver to Trucking Line)', formatDate(cellValue(sheet, 'B7')), false],
     ['Trucking Line', cellValue(sheet, 'B8'), false],
+    ['Farm Ship to', farmShipTo, false],
     ['Account # (if applicable)', cellValue(sheet, 'B9'), false],
     ['Number of Boxes', clean(cellValue(sheet, 'B10')) || '0', true]
   ];
@@ -97,16 +98,16 @@ async function createPassingSheetPdf(workbook) {
     drawTableRow(doc, label, value, sheetLeft, tableTop + index * 25, labelWidth, valueWidth, 25, boldValue);
   });
 
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 296);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 321);
   [13, 14, 15].forEach((row, index) => {
     const line = clean(cellValue(sheet, `B${row}`)) || ' ';
-    const y = 322 + index * 27;
+    const y = 347 + index * 27;
     doc.moveTo(sheetLeft, y + 15).lineTo(sheetRight, y + 15).strokeColor('#334155').lineWidth(0.6).stroke();
     if (line !== ' ') doc.font('Helvetica').fontSize(10).fillColor('#334155').text(line, sheetLeft + 4, y, { width: sheetWidth - 8 });
   });
 
-  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 428);
-  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 454);
+  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 453);
+  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 479);
   doc.end();
   return { buffer: await completed, fileName };
 }

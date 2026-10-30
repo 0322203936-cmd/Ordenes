@@ -1834,8 +1834,8 @@
     commitPendingEditor();
     const ws = workbook.sheets['PASSING SHEET'];
     const farmShipTo = String(workbook?.sheets?.['PO Nuevo']?.cells?.B18?.v ?? '').trim() || 'FLORAL TRADE';
-    const arrivalLabel = `Load Date (Arrival to ${farmShipTo}):`;
-    const passingTitle = `PASSING SHEET – ${farmShipTo}`;
+    const arrivalLabel = 'Load Date (Arrival to Floral Trade):';
+    const passingTitle = 'PASSING SHEET – FLORAL TRADE';
     const html = `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;">
         <h2 style="font-size:18px;font-weight:800;margin-bottom:8px;">${escapeHtml(passingTitle)}</h2>
@@ -1849,6 +1849,7 @@
             <tr><td style="font-weight:700;">${escapeHtml(arrivalLabel)}</td><td>${escapeHtml(formatDateDisplay(ws.cells['B6']?.v))}</td></tr>
             <tr><td style="font-weight:700;">Release Date (Deliver to Trucking Line):</td><td>${escapeHtml(formatDateDisplay(ws.cells['B7']?.v))}</td></tr>
             <tr><td style="font-weight:700;">Trucking Line:</td><td>${escapeHtml(ws.cells['B8']?.v ?? '')}</td></tr>
+            <tr><td style="font-weight:700;">Farm Ship to:</td><td>${escapeHtml(farmShipTo)}</td></tr>
             <tr><td style="font-weight:700;">Account # (if applicable):</td><td>${escapeHtml(ws.cells['B9']?.v ?? '')}</td></tr>
             <tr><td style="font-weight:700;">Number of Boxes:</td><td style="font-weight:800;font-size:15px;">${escapeHtml(ws.cells['B10']?.v ?? 0)}</td></tr>
           </tbody>
