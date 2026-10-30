@@ -581,10 +581,18 @@
       const lastProdRow = totalRow - 1;
       const prodMax = Math.max(234, getLastRealRow('Productos'));
 
-      if (coord === 'E12') return '=+VLOOKUP(F11,Transporte!A:L,12,FALSE)';
-      if (coord === 'B18') return '=IFERROR(VLOOKUP(F11,Transporte!A:M,13,FALSE),"")';
-      if (coord === 'F15') return '=+VLOOKUP(F11,Transporte!A:K,9,FALSE)';
-      if (coord === 'F16') return '=+VLOOKUP(F11,Transporte!A:K,10,FALSE)';
+      const selectedTransportRow = Number(workbook?.sheets?.['PO Nuevo']?.cells?.F11?.transportRow);
+      const transportLookup = (coordName, sourceColumn, fallbackFormula) => {
+        if (selectedTransportRow > 0 && ['E12', 'F15', 'F16', 'B18'].includes(coordName)) {
+          return `=IFERROR(INDEX(Transporte!${sourceColumn}:${sourceColumn},${selectedTransportRow}),"")`;
+        }
+        return fallbackFormula;
+      };
+
+      if (coord === 'E12') return transportLookup(coord, 'L', '=+VLOOKUP(F11,Transporte!A:L,12,FALSE)');
+      if (coord === 'B18') return transportLookup(coord, 'M', '=IFERROR(VLOOKUP(F11,Transporte!A:M,13,FALSE),"")');
+      if (coord === 'F15') return transportLookup(coord, 'I', '=+VLOOKUP(F11,Transporte!A:K,9,FALSE)');
+      if (coord === 'F16') return transportLookup(coord, 'J', '=+VLOOKUP(F11,Transporte!A:K,10,FALSE)');
       if (coord === 'B19') return '=F19-1';
       if (coord === `H${totalRow}`) return `=SUM(H22:H${lastProdRow})`;
       if (coord === `I${totalRow}`) return `=SUM(I22:I${lastProdRow})`;
@@ -722,6 +730,15 @@
       sheet.cells[coord]
     ) {
       sheet.cells[coord].productRow = Number(metadata.productRow);
+    }
+    if (metadata?.transportRow && sheetName === 'PO Nuevo' && coord === 'F11' && sheet.cells[coord]) {
+      sheet.cells[coord].transportRow = Number(metadata.transportRow);
+    }
+    if (sheetName === 'PO Nuevo' && coord === 'F11') {
+      for (const dependentCoord of ['E12', 'F15', 'F16', 'B18']) {
+        const formula = getDefaultFormula('PO Nuevo', dependentCoord);
+        if (formula) sheet.cells[dependentCoord] = { f: formula, v: '' };
+      }
     }
     engine.recalculateAll();
     if (sheetName === 'DayOrders') populateDayOrdersFilters();
@@ -1292,6 +1309,9 @@
 
   function getValidationMetadata(targetCoord, item) {
     const type = isValidationCell(activeSheet, targetCoord);
+    if (type === 'CUSTOMER' && item?.sourceRow) {
+      return { transportRow: item.sourceRow };
+    }
     return type === 'PRODUCT' && item?.sourceRow
       ? { productRow: item.sourceRow }
       : null;
@@ -1317,9 +1337,10 @@
         if (cust !== undefined && cust !== null && String(cust).trim() !== '') {
           const carrier = String(trSheet.cells[`I${r}`]?.v || '').replace(/\s+/g, ' ').trim();
           const city = String(trSheet.cells[`L${r}`]?.v || '').replace(/\s+/g, ' ').trim();
+          const farmShipTo = String(trSheet.cells[`M${r}`]?.v || '').replace(/\s+/g, ' ').trim();
           items.push({
             value: String(cust),
-            sub: [carrier, city].filter(Boolean).join(' • '),
+            sub: [carrier, city, farmShipTo ? `Farm Ship to: ${farmShipTo}` : ''].filter(Boolean).join(' • '),
             sourceRow: r
           });
         }
