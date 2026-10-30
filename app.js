@@ -1340,6 +1340,7 @@
           const farmShipTo = String(trSheet.cells[`M${r}`]?.v || '').replace(/\s+/g, ' ').trim();
           items.push({
             value: String(cust),
+            displayValue: farmShipTo ? `${String(cust)} — ${farmShipTo}` : String(cust),
             sub: [carrier, city, farmShipTo ? `Farm Ship to: ${farmShipTo}` : ''].filter(Boolean).join(' • '),
             sourceRow: r
           });
@@ -1408,7 +1409,7 @@
     validationList.innerHTML = filtered
       .map(
         (it, idx) => `<div class="validation-item${idx === 0 ? ' active' : ''}" data-idx="${idx}" data-source-row="${it.sourceRow ?? ''}" data-val="${escapeHtml(it.value)}">
-          <span class="validation-item-main">${escapeHtml(it.value)}</span>
+          <span class="validation-item-main">${escapeHtml(it.displayValue || it.value)}</span>
           <span class="validation-item-sub">${escapeHtml(it.sub)}</span>
         </div>`
       )
