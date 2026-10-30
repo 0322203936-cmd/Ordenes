@@ -1833,8 +1833,8 @@
   function ejecutarPdfPassingSheet() {
     commitPendingEditor();
     const ws = workbook.sheets['PASSING SHEET'];
-    const arrivalLabel = ws.cells['A6']?.v || 'Load Date (Arrival to Floral Trade):';
     const farmShipTo = String(workbook?.sheets?.['PO Nuevo']?.cells?.B18?.v ?? '').trim() || 'FLORAL TRADE';
+    const arrivalLabel = `Load Date (Arrival to ${farmShipTo}):`;
     const passingTitle = `PASSING SHEET – ${farmShipTo}`;
     const html = `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;">

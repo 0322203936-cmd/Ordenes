@@ -51,8 +51,8 @@ async function createPassingSheetPdf(workbook) {
 
   const customer = clean(cellValue(sheet, 'B5')) || 'Cliente';
   const loadDate = cellValue(sheet, 'B6');
-  const arrivalLabel = clean(cellValue(sheet, 'A6')) || 'Load Date (Arrival to Floral Trade):';
   const farmShipTo = clean(cellValue(workbook?.sheets?.['PO Nuevo'], 'B18')) || 'FLORAL TRADE';
+  const arrivalLabel = `Load Date (Arrival to ${farmShipTo}):`;
   const fileName = `Passing Sheet Wholesale - ${safePart(customer, 'Cliente')} - ${formatDate(loadDate).replace(/\//g, '-')}.pdf`;
   const doc = new PDFDocument({
     size: 'LETTER',
@@ -72,19 +72,16 @@ async function createPassingSheetPdf(workbook) {
   const sheetLeft = pageLeft + 16;
   const sheetRight = pageRight - 16;
   const sheetWidth = sheetRight - sheetLeft;
-  doc.lineWidth(0.7).strokeColor('#cbd5e1').rect(pageLeft, 36, pageRight - pageLeft, 650).stroke();
-  doc.font('Helvetica-Bold').fontSize(18).fillColor('#14532d').text('PACIFICA PRODUCE FARMS LLC', sheetLeft, 54);
-  doc.font('Helvetica').fontSize(8.5).fillColor('#334155').text('PO Box 530990 • San Diego, CA 92154', sheetLeft, 77);
-  doc.moveTo(sheetLeft, 94).lineTo(sheetRight, 94).strokeColor('#14532d').lineWidth(1.2).stroke();
-  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(`PASSING SHEET – ${farmShipTo}`, sheetLeft, 112);
+  doc.lineWidth(0.7).strokeColor('#cbd5e1').rect(pageLeft, 36, pageRight - pageLeft, 570).stroke();
+  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(`PASSING SHEET – ${farmShipTo}`, sheetLeft, 54);
   doc.font('Helvetica').fontSize(10).fillColor('#334155').text(
     clean(cellValue(sheet, 'A2')) || 'Please receive the following shipment and release it to the designated trucking line as instructed below.',
     sheetLeft,
-    136,
+    78,
     { width: sheetWidth }
   );
 
-  const tableTop = 164;
+  const tableTop = 106;
   const labelWidth = 270;
   const valueWidth = sheetWidth - labelWidth;
   const rows = [
@@ -100,16 +97,16 @@ async function createPassingSheetPdf(workbook) {
     drawTableRow(doc, label, value, sheetLeft, tableTop + index * 25, labelWidth, valueWidth, 25, boldValue);
   });
 
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 354);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 296);
   [13, 14, 15].forEach((row, index) => {
     const line = clean(cellValue(sheet, `B${row}`)) || ' ';
-    const y = 380 + index * 27;
+    const y = 322 + index * 27;
     doc.moveTo(sheetLeft, y + 15).lineTo(sheetRight, y + 15).strokeColor('#334155').lineWidth(0.6).stroke();
     if (line !== ' ') doc.font('Helvetica').fontSize(10).fillColor('#334155').text(line, sheetLeft + 4, y, { width: sheetWidth - 8 });
   });
 
-  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 486);
-  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 512);
+  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 428);
+  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 454);
   doc.end();
   return { buffer: await completed, fileName };
 }
