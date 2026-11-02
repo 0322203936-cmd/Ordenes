@@ -595,7 +595,7 @@
       if (coord === 'F16') return transportLookup(coord, 'J', '=+VLOOKUP(F11,Transporte!A:K,10,FALSE)');
       if (coord === 'B19') return '=F19-1';
       if (coord === `H${totalRow}`) return `=SUM(H22:H${lastProdRow})`;
-      if (coord === `I${totalRow}`) return `=SUM(I22:I${lastProdRow})`;
+      if (coord === `I${totalRow}`) return buildPOTotalPriceFormula(lastProdRow);
 
       if (row >= 22 && row <= lastProdRow) {
         if (colStr === 'A') return row === 22 ? '=+A9' : `=IF(B${row}="","",$A$9)`;
@@ -623,6 +623,17 @@
     return null;
   }
 
+  // PO Nuevo total: price is per stem/bunch, so each line is
+  // Price $ × Cases × BU/BOX. Keep the formula compatible with the
+  // in-browser formula engine by expanding the row products explicitly.
+  function buildPOTotalPriceFormula(lastProdRow) {
+    const products = [];
+    for (let row = 22; row <= lastProdRow; row += 1) {
+      products.push(`H${row}*E${row}*I${row}`);
+    }
+    return `=${products.join('+') || '0'}`;
+  }
+
   function migratePONuevoDefaultFormulas() {
     const sheet = workbook?.sheets?.['PO Nuevo'];
     if (!sheet) return false;
@@ -641,6 +652,20 @@
           changed = true;
         }
       }
+    }
+
+    // Migrate the existing TOTAL row as well; otherwise an older workbook
+    // would continue summing only the Price $ column until a row was inserted.
+    const totalPriceCoord = `I${totalRow}`;
+    const totalPriceFormula = buildPOTotalPriceFormula(totalRow - 1);
+    const totalPriceCell = sheet.cells[totalPriceCoord];
+    if (totalPriceCell?.f !== totalPriceFormula) {
+      sheet.cells[totalPriceCoord] = {
+        ...(totalPriceCell || {}),
+        f: totalPriceFormula,
+        v: totalPriceCell?.v ?? 0
+      };
+      changed = true;
     }
 
     const farmShipToFormula = getDefaultFormula('PO Nuevo', 'B18');
@@ -1128,7 +1153,7 @@
         // Update TOTAL row formulas at newTotalRow
         sheet.cells[`G${newTotalRow}`] = { v: 'TOTAL' };
         sheet.cells[`H${newTotalRow}`] = { f: `=SUM(H22:H${newTotalRow - 1})`, v: 0 };
-        sheet.cells[`I${newTotalRow}`] = { f: `=SUM(I22:I${newTotalRow - 1})`, v: 0 };
+        sheet.cells[`I${newTotalRow}`] = { f: buildPOTotalPriceFormula(newTotalRow - 1), v: 0 };
 
         // Update PASSING SHEET B10 link to PO Nuevo total boxes
         const wsPassing = workbook.sheets['PASSING SHEET'];
@@ -1229,7 +1254,7 @@
 
         sheet.cells[`G${newTotalRow}`] = { v: 'TOTAL' };
         sheet.cells[`H${newTotalRow}`] = { f: `=SUM(H22:H${newTotalRow - 1})`, v: 0 };
-        sheet.cells[`I${newTotalRow}`] = { f: `=SUM(I22:I${newTotalRow - 1})`, v: 0 };
+        sheet.cells[`I${newTotalRow}`] = { f: buildPOTotalPriceFormula(newTotalRow - 1), v: 0 };
 
         const wsPassing = workbook.sheets['PASSING SHEET'];
         if (wsPassing && wsPassing.cells['B10']) {
