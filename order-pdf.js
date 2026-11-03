@@ -108,9 +108,10 @@ async function createOrderPdf(workbook) {
     const flower = clean(cellValue(orderSheet, `B${row}`));
     if (!flower) continue;
     const cases = numberValue(cellValue(orderSheet, `H${row}`));
+    const bunches = numberValue(cellValue(orderSheet, `E${row}`));
     const price = numberValue(cellValue(orderSheet, `I${row}`));
     totalCases += cases;
-    totalPrice += cases * price;
+    totalPrice += cases * bunches * price;
     rows.push({
       po: poNumber,
       flower,
