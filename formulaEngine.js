@@ -408,6 +408,14 @@
     evalFunction(fnName, argsStr, currentSheet) {
       const args = splitArgs(argsStr);
 
+      if (fnName === 'TODAY') {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
       if (fnName === 'IF') {
         const cond = this.evalExpr(args[0] || '', currentSheet);
         if (cond && cond.__error) return cond;

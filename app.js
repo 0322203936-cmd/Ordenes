@@ -593,7 +593,10 @@
       if (coord === 'B18') return transportLookup(coord, 'M', '=IFERROR(VLOOKUP(F11,Transporte!A:M,13,FALSE),"")');
       if (coord === 'F15') return transportLookup(coord, 'I', '=+VLOOKUP(F11,Transporte!A:K,9,FALSE)');
       if (coord === 'F16') return transportLookup(coord, 'J', '=+VLOOKUP(F11,Transporte!A:K,10,FALSE)');
-      if (coord === 'B19') return '=F19-1';
+      // Load Date is normally one day before Tender Date. If that calculation
+      // lands on today, move it to Tender Date so the load is never scheduled
+      // for the current day.
+      if (coord === 'B19') return '=IF(F19-1=TODAY(),F19,F19-1)';
       if (coord === `H${totalRow}`) return `=SUM(H22:H${lastProdRow})`;
       if (coord === `I${totalRow}`) return buildPOTotalPriceFormula(lastProdRow);
 
@@ -672,6 +675,13 @@
     const farmShipToCell = sheet.cells.B18;
     if (farmShipToFormula && farmShipToCell?.f !== farmShipToFormula) {
       sheet.cells.B18 = { ...(farmShipToCell || {}), f: farmShipToFormula, v: farmShipToCell?.v ?? '' };
+      changed = true;
+    }
+
+    const loadDateFormula = getDefaultFormula('PO Nuevo', 'B19');
+    const loadDateCell = sheet.cells.B19;
+    if (loadDateFormula && loadDateCell?.f !== loadDateFormula) {
+      sheet.cells.B19 = { ...(loadDateCell || {}), f: loadDateFormula, v: loadDateCell?.v ?? '' };
       changed = true;
     }
 
