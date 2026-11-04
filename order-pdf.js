@@ -95,6 +95,7 @@ async function createOrderPdf(workbook) {
   const poNumber = clean(cellValue(orderSheet, 'A9'));
   const customer = clean(cellValue(orderSheet, 'F11'));
   const truckLine = clean(cellValue(orderSheet, 'F15'));
+  const farmShipTo = clean(cellValue(orderSheet, 'B18')) || 'FLORAL TRADE';
   const loadDate = parseDate(cellValue(orderSheet, 'B19'), 'Load Date');
   if (!poNumber || !customer || !truckLine) {
     throw new Error('PO Nuevo requiere PO, Customer Ship y Truck Line para crear el PDF.');
@@ -152,7 +153,7 @@ async function createOrderPdf(workbook) {
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827');
   doc.text(`SHIPPER: `, left, 86, { continued: true }).font('Helvetica').text('Pacifica Produce Farms LLC');
   doc.font('Helvetica-Bold').text(`SHIP TO: `, left + 260, 86, { continued: true }).font('Helvetica').text(customer);
-  doc.font('Helvetica-Bold').text(`Farm Ship to: `, left, 101, { continued: true }).font('Helvetica').text('FLORAL TRADE');
+  doc.font('Helvetica-Bold').text(`Farm Ship to: `, left, 101, { continued: true }).font('Helvetica').text(farmShipTo);
   doc.font('Helvetica-Bold').text(`TRUCK LINE: `, left + 260, 101, { continued: true }).font('Helvetica').text(truckLine);
   doc.font('Helvetica-Bold').text(`Load Date: `, left, 116, { continued: true }).font('Helvetica').text(formatDate(loadDate));
   doc.font('Helvetica-Bold').text(`Tender Date: `, left + 260, 116, { continued: true }).font('Helvetica').text(formatDate(cellValue(orderSheet, 'F19') || loadDate));
