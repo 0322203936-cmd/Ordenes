@@ -1753,7 +1753,14 @@
       if (!response.ok) throw new Error(payload.error || 'No se pudo enviar la orden por correo.');
       const recipients = Array.isArray(payload.sentTo) ? payload.sentTo.join(', ') : 'los destinatarios configurados';
       const pendingMessage = payload.pendingBom > 0 ? ` BOM pendiente incluido: ${payload.pendingBom}.` : '';
-      showToast(`${isPassingSheet ? 'Passing Sheet enviado' : 'Orden enviada'} a ${recipients}.${pendingMessage}`);
+      if (!isPassingSheet && payload.passingSent) {
+        const passingRecipients = Array.isArray(payload.passingSentTo)
+          ? payload.passingSentTo.join(', ')
+          : 'los destinatarios configurados';
+        showToast(`Orden enviada a ${recipients}. Passing Sheet enviado a ${passingRecipients}.${pendingMessage}`);
+      } else {
+        showToast(`${isPassingSheet ? 'Passing Sheet enviado' : 'Orden enviada'} a ${recipients}.${pendingMessage}`);
+      }
     } catch (error) {
       showToast(`No se pudo enviar la orden: ${error.message}`, true);
     } finally {

@@ -92,7 +92,21 @@ const server = http.createServer(async (req, res) => {
         poscoFileName: posco.fileName,
         boomPending: posco.boomPending
       });
-      sendJson(res, 200, { ok: true, ...email, rows: posco.rows });
+      // Sending the order must also send the Passing Sheet. The Passing Sheet
+      // keeps its own recipient list, so the two emails remain separate.
+      const passingPdf = await createPassingSheetPdf(parsed);
+      const passingEmail = await sendPassingSheetEmail({
+        workbook: parsed,
+        pdfBuffer: passingPdf.buffer,
+        pdfFileName: passingPdf.fileName
+      });
+      sendJson(res, 200, {
+        ok: true,
+        ...email,
+        rows: posco.rows,
+        passingSentTo: passingEmail.sentTo,
+        passingSent: true
+      });
     } catch (err) {
       const status = err.message?.includes('Falta configurar') || err.message?.includes('Microsoft Graph') ? 503 : 400;
       sendJson(res, err.status || status, { error: err.message });
