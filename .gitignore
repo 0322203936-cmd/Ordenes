@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+data/passing_sheets_pending.json
 *.log
 .DS_Store
 Thumbs.db

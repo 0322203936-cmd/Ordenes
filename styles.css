@@ -1368,6 +1368,344 @@ html, body {
   transform: translateY(1px);
 }
 
+/* Passing Sheets Pendientes */
+.passing-pending-modal-card {
+  max-width: 1040px;
+  border-radius: 6px;
+  border-top: 0;
+  box-shadow: 0 22px 44px -18px rgba(15, 23, 42, .5);
+}
+
+.passing-pending-overlay {
+  align-items: stretch;
+  padding: 0;
+}
+
+.passing-pending-overlay .passing-pending-modal-card {
+  height: 100%;
+  max-height: none;
+  max-width: none;
+  border-radius: 0;
+  width: 100%;
+}
+
+.passing-pending-body {
+  background: #f6f8f7;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 18px 20px 22px;
+}
+
+.passing-pending-modal-card .modal-header {
+  background: var(--excel-green-dark);
+  border-bottom: 0;
+  padding: 13px 18px;
+}
+
+.passing-pending-modal-card .modal-header h3 {
+  color: #ffffff;
+  letter-spacing: -.02em;
+}
+
+.passing-pending-modal-card .modal-subtitle {
+  color: rgba(255, 255, 255, .76);
+}
+
+.passing-pending-modal-card .btn-close-modal {
+  background: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .35);
+  color: #ffffff;
+}
+
+.passing-pending-modal-card .btn-close-modal:hover {
+  background: rgba(255, 255, 255, .2);
+}
+
+.pending-count-badge,
+.pending-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pending-count-badge {
+  background: #ffffff;
+  border: 0;
+  color: var(--excel-green-dark);
+  letter-spacing: .01em;
+}
+
+.pending-table-wrap {
+  background: #ffffff;
+  border: 1px solid #d8e3dc;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+  overflow-x: auto;
+}
+
+.pending-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: auto;
+}
+
+.pending-table th,
+.pending-table td {
+  border-bottom: 1px solid #e5ebe7;
+  padding: 12px 11px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.pending-table th {
+  background: #eef4ef;
+  border-bottom-color: #cbdccf;
+  color: #385444;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pending-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pending-table tbody tr:hover {
+  background: #fbfefb;
+}
+
+.pending-table tbody tr.pending-row-enviado td {
+  background: #edf8ef;
+  border-bottom-color: #cce5d1;
+  color: #315b3b;
+}
+
+.pending-table tbody tr.pending-row-enviado:hover td {
+  background: #e5f4e8;
+}
+
+.pending-table tbody tr.pending-row-cancelado td {
+  background: #f3f5f6;
+  color: #66727a;
+}
+
+.pending-table td:first-child {
+  min-width: 170px;
+}
+
+.pending-table td:first-child strong {
+  color: #123d27;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+
+.pending-table th:nth-child(1) { min-width: 170px; }
+.pending-table th:nth-child(2),
+.pending-table th:nth-child(3) { min-width: 92px; }
+.pending-table th:nth-child(4) { min-width: 90px; }
+.pending-table th:nth-child(7) { min-width: 135px; }
+.pending-table th:nth-child(8) { min-width: 185px; }
+
+.pending-muted {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.pending-countdown {
+  background: #f1f8f2;
+  border: 1px solid #d0e6d4;
+  border-radius: 3px;
+  color: #14532d;
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.pending-status-pendiente,
+.pending-status-listo-para-enviar {
+  background: #fff6dc;
+  border: 1px solid #ecd38b;
+  color: #8a5a00;
+}
+
+.pending-status-enviado {
+  background: #edf7ef;
+  border: 1px solid #b9dfc1;
+  color: #236b36;
+}
+
+.pending-status-cancelado {
+  background: #f1f3f4;
+  border: 1px solid #cbd2d6;
+  color: #5f6b72;
+}
+
+.pending-status-error {
+  background: #fff0f0;
+  border: 1px solid #efb6b6;
+  color: #991b1b;
+}
+
+.pending-actions {
+  display: table-cell;
+  white-space: nowrap;
+}
+
+.pending-actions .pending-action-btn {
+  margin-right: 5px;
+}
+
+.pending-actions .pending-action-btn:last-child {
+  margin-right: 0;
+}
+
+.pending-action-btn,
+.pending-close-editor {
+  border: 1px solid #c8d5cc;
+  border-radius: 4px;
+  background: #fff;
+  color: #284433;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 7px 10px;
+}
+
+.pending-action-btn:hover,
+.pending-close-editor:hover {
+  background: #f1f7f2;
+  border-color: #9fbea6;
+}
+
+.pending-action-primary {
+  border-color: #166534;
+  background: #166534;
+  color: #fff;
+}
+
+.pending-action-primary:hover {
+  background: #14532d;
+}
+
+.pending-action-cancel {
+  border-color: #d8a4a4;
+  color: #9b2c2c;
+}
+
+.pending-action-cancel:hover {
+  background: #fff5f5;
+  border-color: #c46f6f;
+}
+
+.pending-action-resume {
+  border-color: #8fb99a;
+  color: var(--excel-green-dark);
+}
+
+.pending-action-resume:hover {
+  background: #f1f8f2;
+  border-color: #5e9a6c;
+}
+
+.pending-action-send {
+  border-color: #b45309;
+  color: #92400e;
+}
+
+.pending-empty-state {
+  padding: 28px 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+.pending-error-state {
+  color: #991b1b;
+}
+
+.passing-pending-editor {
+  background: #ffffff;
+  border: 1px solid #d8e3dc;
+  border-left: 4px solid var(--excel-green);
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+  padding: 16px 18px 18px;
+}
+
+.pending-editor-header,
+.pending-editor-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.pending-editor-header {
+  border-bottom: 1px solid #e5ebe7;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+}
+
+.pending-editor-header .pending-muted {
+  margin-left: 10px;
+}
+
+.pending-editor-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pending-editor-form label {
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 5px;
+}
+
+.pending-form-wide {
+  grid-column: 1 / -1;
+}
+
+.pending-form-control {
+  background: #fbfdfb;
+  border: 1px solid #c8d5cc;
+  border-radius: 4px;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 400;
+  min-height: 32px;
+  padding: 6px 8px;
+}
+
+.pending-form-control:focus {
+  border-color: var(--excel-green);
+  outline: 2px solid rgba(22, 101, 52, .18);
+}
+
+@media (max-width: 760px) {
+  .pending-editor-form {
+    grid-template-columns: 1fr;
+  }
+
+  .pending-form-wide {
+    grid-column: auto;
+  }
+}
+
 .header-action-btn .btn-dot {
   width: 7px;
   height: 7px;

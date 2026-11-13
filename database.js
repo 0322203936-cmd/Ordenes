@@ -12,6 +12,10 @@ function isDatabaseConfigured() {
   return Boolean(process.env.DATABASE_URL);
 }
 
+function getDatabasePool() {
+  return getPool();
+}
+
 function getPool() {
   if (!isDatabaseConfigured()) return null;
   if (!pool) {
@@ -91,6 +95,10 @@ async function resetWorkbook() {
   const db = getPool();
   if (!db) return initial;
   await ensureDatabase();
+  const current = await getWorkbook();
+  for (const sheetName of ['Productos', 'Transporte']) {
+    if (current?.sheets?.[sheetName]) initial.sheets[sheetName] = current.sheets[sheetName];
+  }
   await db.query(
     `INSERT INTO workbook_state (id, filename, workbook, updated_at)
      VALUES (1, $1, $2::jsonb, NOW())
@@ -110,7 +118,9 @@ async function closeDatabase() {
 module.exports = {
   closeDatabase,
   getWorkbook,
+  getDatabasePool,
   isDatabaseConfigured,
   resetWorkbook,
-  saveWorkbook
+  saveWorkbook,
+  ensureDatabase
 };

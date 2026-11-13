@@ -14,6 +14,20 @@ const { createPoscoWorkbook } = require('./posco-export');
 const { createOrderPdf } = require('./order-pdf');
 const { createPassingSheetPdf } = require('./passing-pdf');
 const { sendPassingSheetEmail, sendWholesaleEmail } = require('./email-sender');
+const {
+  canSendPending,
+  cancelPendingPassingSheet,
+  finishSendingPending,
+  getPendingPassingSheet,
+  listPendingPassingSheets,
+  markPendingError,
+  markPendingSent,
+  pendingWorkbook,
+  queuePassingSheet,
+  resumePendingPassingSheet,
+  startPassingSheetScheduler,
+  updatePendingPassingSheet
+} = require('./passing-sheets');
 
 const PORT = process.env.PORT || 3050;
 const ROOT_DIR = __dirname;
@@ -57,6 +71,36 @@ function readRequestBody(req) {
   });
 }
 
+function localEmailPreviewEnabled() {
+  return String(process.env.LOCAL_EMAIL_PREVIEW).toLowerCase() === 'true';
+}
+
+async function sendPendingPassingSheet(id) {
+  const pending = await getPendingPassingSheet(id);
+  if (!pending) throw new Error('Passing Sheet pendiente no encontrado.');
+  if (pending.status === 'ENVIADO') return { record: pending, sentTo: [] };
+  if (!canSendPending(id)) throw new Error('Este Passing Sheet ya se está enviando.');
+
+  try {
+    const workbook = pendingWorkbook(pending);
+    const pdf = await createPassingSheetPdf(workbook);
+    const email = localEmailPreviewEnabled()
+      ? { sentTo: ['LOCAL PREVIEW'], simulated: true }
+      : await sendPassingSheetEmail({
+        workbook,
+        pdfBuffer: pdf.buffer,
+        pdfFileName: pdf.fileName
+      });
+    const record = await markPendingSent(id, email);
+    return { record, ...email };
+  } catch (error) {
+    await markPendingError(id, error);
+    throw error;
+  } finally {
+    finishSendingPending(id);
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(parsedUrl.pathname);
@@ -84,32 +128,92 @@ const server = http.createServer(async (req, res) => {
       const parsed = JSON.parse(await readRequestBody(req));
       const posco = await createPoscoWorkbook(parsed);
       const pdf = await createOrderPdf(parsed);
-      const email = await sendWholesaleEmail({
-        workbook: parsed,
-        pdfBuffer: pdf.buffer,
-        pdfFileName: pdf.fileName,
-        poscoBuffer: posco.buffer,
-        poscoFileName: posco.fileName,
-        boomPending: posco.boomPending
-      });
-      // Sending the order must also send the Passing Sheet. The Passing Sheet
-      // keeps its own recipient list, so the two emails remain separate.
-      const passingPdf = await createPassingSheetPdf(parsed);
-      const passingEmail = await sendPassingSheetEmail({
-        workbook: parsed,
-        pdfBuffer: passingPdf.buffer,
-        pdfFileName: passingPdf.fileName
-      });
+      const email = localEmailPreviewEnabled()
+        ? { sentTo: ['LOCAL PREVIEW'], pendingBom: posco.boomPending.length, simulated: true }
+        : await sendWholesaleEmail({
+          workbook: parsed,
+          pdfBuffer: pdf.buffer,
+          pdfFileName: pdf.fileName,
+          poscoBuffer: posco.buffer,
+          poscoFileName: posco.fileName,
+          boomPending: posco.boomPending
+        });
+      const pending = await queuePassingSheet(parsed);
       sendJson(res, 200, {
         ok: true,
         ...email,
         rows: posco.rows,
-        passingSentTo: passingEmail.sentTo,
-        passingSent: true
+        passingQueued: true,
+        passingPendingId: pending.id,
+        passingScheduledAt: pending.scheduledAt,
+        passingSent: false
       });
     } catch (err) {
       const status = err.message?.includes('Falta configurar') || err.message?.includes('Microsoft Graph') ? 503 : 400;
       sendJson(res, err.status || status, { error: err.message });
+    }
+    return;
+  }
+
+  if (pathname === '/api/passing/pending' && req.method === 'GET') {
+    sendJson(res, 200, { ok: true, records: await listPendingPassingSheets() });
+    return;
+  }
+
+  const pendingMatch = pathname.match(/^\/api\/passing\/pending\/([^/]+)$/);
+  if (pendingMatch && req.method === 'PATCH') {
+    try {
+      const input = JSON.parse(await readRequestBody(req));
+      const updated = await updatePendingPassingSheet(pendingMatch[1], input);
+      if (!updated) {
+        sendJson(res, 404, { error: 'Passing Sheet pendiente no encontrado.' });
+      } else {
+        sendJson(res, 200, { ok: true, record: updated });
+      }
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
+    return;
+  }
+
+  const pendingSendMatch = pathname.match(/^\/api\/passing\/pending\/([^/]+)\/send$/);
+  if (pendingSendMatch && req.method === 'POST') {
+    try {
+      const result = await sendPendingPassingSheet(pendingSendMatch[1]);
+      sendJson(res, 200, { ok: true, ...result, record: result.record });
+    } catch (err) {
+      const status = err.message?.includes('Falta configurar') || err.message?.includes('Microsoft Graph') ? 503 : 400;
+      sendJson(res, err.status || status, { error: err.message });
+    }
+    return;
+  }
+
+  const pendingCancelMatch = pathname.match(/^\/api\/passing\/pending\/([^/]+)\/cancel$/);
+  if (pendingCancelMatch && req.method === 'POST') {
+    try {
+      const record = await cancelPendingPassingSheet(pendingCancelMatch[1]);
+      if (!record) {
+        sendJson(res, 404, { error: 'Passing Sheet pendiente no encontrado.' });
+      } else {
+        sendJson(res, 200, { ok: true, record });
+      }
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
+    return;
+  }
+
+  const pendingResumeMatch = pathname.match(/^\/api\/passing\/pending\/([^/]+)\/resume$/);
+  if (pendingResumeMatch && req.method === 'POST') {
+    try {
+      const record = await resumePendingPassingSheet(pendingResumeMatch[1]);
+      if (!record) {
+        sendJson(res, 404, { error: 'Passing Sheet pendiente no encontrado.' });
+      } else {
+        sendJson(res, 200, { ok: true, record });
+      }
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
     }
     return;
   }
@@ -164,8 +268,13 @@ const server = http.createServer(async (req, res) => {
       if (isDatabaseConfigured()) {
         sendJson(res, 200, await resetWorkbook());
       } else {
-        if (fs.existsSync(STATE_FILE)) fs.unlinkSync(STATE_FILE);
-        sendJson(res, 200, readLocalWorkbook());
+        const initial = JSON.parse(fs.readFileSync(INITIAL_FILE, 'utf8'));
+        const current = fs.existsSync(STATE_FILE) ? readLocalWorkbook() : initial;
+        for (const sheetName of ['Productos', 'Transporte']) {
+          if (current?.sheets?.[sheetName]) initial.sheets[sheetName] = current.sheets[sheetName];
+        }
+        fs.writeFileSync(STATE_FILE, JSON.stringify(initial, null, 2), 'utf8');
+        sendJson(res, 200, initial);
       }
     } catch (err) {
       sendJson(res, 500, { error: err.message });
@@ -197,10 +306,16 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('  SISTEMA EXCEL: ORDENES WHOLESALE (Pacifica Farms)');
   console.log(`  URL: http://localhost:${PORT}`);
   console.log(`  Almacenamiento: ${isDatabaseConfigured() ? 'Neon PostgreSQL' : 'JSON local (DATABASE_URL no configurada)'}`);
+  console.log(`  Passing Sheet automático: ${String(process.env.PASSING_AUTO_SEND).toLowerCase() === 'true' ? 'activo' : 'manual/local'}`);
   console.log('====================================================');
 });
 
+const passingScheduler = startPassingSheetScheduler(async id => {
+  await sendPendingPassingSheet(id);
+});
+
 async function shutdown() {
+  if (passingScheduler) clearInterval(passingScheduler);
   await closeDatabase();
   server.close(() => process.exit(0));
 }

@@ -18,6 +18,9 @@
   let zoomLevel = 80;
   let searchQuery = '';
   let emailSendMode = null;
+  let pendingSendId = null;
+  let passingPendingRecords = [];
+  let passingPendingTimer = null;
 
   // Filters for DayOrders
   let dayFilterDate = 'ALL';
@@ -47,6 +50,10 @@
   const dayOrdersFilterGroup = document.getElementById('dayOrdersFilterGroup');
   const filterDayOrdersDate = document.getElementById('filterDayOrdersDate');
   const filterDayOrdersClient = document.getElementById('filterDayOrdersClient');
+  const passingPendingOverlay = document.getElementById('passingPendingOverlay');
+  const passingPendingList = document.getElementById('passingPendingList');
+  const passingPendingEditor = document.getElementById('passingPendingEditor');
+  const passingPendingCount = document.getElementById('passingPendingCount');
 
   // Initialize App
   async function init() {
@@ -1730,20 +1737,281 @@
     }
   }
 
+  function pendingCell(record, coord) {
+    return record?.passingSheet?.cells?.[coord]?.v ?? '';
+  }
+
+  function formatPendingCountdown(scheduledAt, status) {
+    if (status === 'ENVIADO') return 'Enviado';
+    if (status === 'CANCELADO') return 'Cancelado';
+    if (status === 'ERROR') return 'Error de envío';
+    if (!scheduledAt) return 'Sin fecha programada';
+    const diff = new Date(scheduledAt).getTime() - Date.now();
+    if (diff <= 0) return 'Listo para enviar';
+    const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const paddedMinutes = String(minutes).padStart(2, '0');
+    const paddedSeconds = String(seconds).padStart(2, '0');
+    if (days > 0) return `${days}d ${hours}h ${paddedMinutes}m ${paddedSeconds}s`;
+    if (hours > 0) return `${hours}h ${paddedMinutes}m ${paddedSeconds}s`;
+    if (minutes > 0) return `${minutes}m ${paddedSeconds}s`;
+    return `${seconds}s`;
+  }
+
+  function pendingStatusText(record) {
+    if (record.status === 'ENVIADO') return 'ENVIADO';
+    if (record.status === 'CANCELADO') return 'CANCELADO';
+    if (record.status === 'ERROR') return 'ERROR';
+    if (record.scheduledAt && new Date(record.scheduledAt).getTime() <= Date.now()) return 'LISTO PARA ENVIAR';
+    return 'PENDIENTE';
+  }
+
+  function renderPassingSheetHtmlFromRecord(record) {
+    const value = coord => pendingCell(record, coord);
+    const instructions = record.instructions || [value('B13'), value('B14'), value('B15')];
+    const farmShipTo = record.farmShipTo || 'FLORAL TRADE';
+    const passingTitle = 'PASSING SHEET – FLORAL TRADE';
+    return `
+      <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;color:#111827;">
+        <h2 style="font-size:18px;font-weight:800;margin-bottom:8px;">${escapeHtml(passingTitle)}</h2>
+        <p style="font-size:12.5px;color:#334155;margin-bottom:18px;">${escapeHtml(value('A2'))}</p>
+        <table class="pdf-table" style="font-size:13px;margin-bottom:20px;">
+          <tbody>
+            <tr><td style="font-weight:700;width:55%;">Farm / Shipper:</td><td>${escapeHtml(value('B4'))}</td></tr>
+            <tr><td style="font-weight:700;">Customer Name:</td><td><strong>${escapeHtml(record.customer || value('B5'))}</strong></td></tr>
+            <tr><td style="font-weight:700;">Load Date (Arrival to Floral Trade):</td><td>${escapeHtml(formatDateDisplay(record.loadDate || value('B6')))}</td></tr>
+            <tr><td style="font-weight:700;">Release Date (Deliver to Trucking Line):</td><td>${escapeHtml(formatDateDisplay(record.releaseDate || value('B7')))}</td></tr>
+            <tr><td style="font-weight:700;">Trucking Line:</td><td>${escapeHtml(record.truckLine || value('B8'))}</td></tr>
+            <tr><td style="font-weight:700;">Farm Ship to:</td><td>${escapeHtml(farmShipTo)}</td></tr>
+            <tr><td style="font-weight:700;">Account # (if applicable):</td><td>${escapeHtml(record.account || value('B9'))}</td></tr>
+            <tr><td style="font-weight:700;">Number of Boxes:</td><td style="font-weight:800;font-size:15px;">${escapeHtml(record.boxes ?? value('B10'))}</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:18px;font-size:13px;">
+          <strong>Special Instructions:</strong>
+          <div style="border-bottom:1px solid #334155;height:26px;margin-top:8px;">${escapeHtml(instructions[0] || '')}</div>
+          <div style="border-bottom:1px solid #334155;height:26px;">${escapeHtml(instructions[1] || '')}</div>
+          <div style="border-bottom:1px solid #334155;height:26px;">${escapeHtml(instructions[2] || '')}</div>
+        </div>
+        <div style="margin-top:32px;font-size:13px;">
+          <p style="margin-bottom:14px;"><strong>Authorized by Pacifica Farms:</strong> ________________________________</p>
+          <p><strong>Contact Phone:</strong> ______________________ &nbsp;&nbsp; <strong>Email:</strong> ______________________</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderPassingPendingList() {
+    if (!passingPendingList) return;
+    const activeCount = passingPendingRecords.filter(record => !['ENVIADO', 'CANCELADO'].includes(record.status)).length;
+    if (passingPendingCount) passingPendingCount.textContent = `${activeCount} pendiente${activeCount === 1 ? '' : 's'}`;
+    if (!passingPendingRecords.length) {
+      passingPendingList.innerHTML = '<div class="pending-empty-state">No hay Passing Sheets pendientes.</div>';
+      return;
+    }
+    const rows = passingPendingRecords.map(record => {
+      const status = pendingStatusText(record);
+      const canEdit = !['ENVIADO', 'CANCELADO'].includes(record.status);
+      const rowClass = record.status === 'ENVIADO' ? 'pending-row-enviado' : (record.status === 'CANCELADO' ? 'pending-row-cancelado' : '');
+      return `
+        <tr class="pending-row ${rowClass}">
+          <td><strong>${escapeHtml(record.poNumber)}</strong><br><span class="pending-muted">${escapeHtml(record.customer)}</span></td>
+          <td>${escapeHtml(formatDateDisplay(record.loadDate))}</td>
+          <td>${escapeHtml(formatDateDisplay(record.releaseDate))}</td>
+          <td>${escapeHtml(record.truckLine || '-')}</td>
+          <td>${escapeHtml(String(record.boxes ?? '-'))}</td>
+          <td><span class="pending-status pending-status-${status.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(status)}</span></td>
+          <td class="pending-countdown" data-pending-countdown="${escapeHtml(record.id)}">${escapeHtml(formatPendingCountdown(record.scheduledAt, record.status))}</td>
+          <td class="pending-actions">
+            <button type="button" class="pending-action-btn" data-pending-action="view" data-pending-id="${escapeHtml(record.id)}">Ver / editar</button>
+            ${record.status === 'CANCELADO' ? `<button type="button" class="pending-action-btn pending-action-resume" data-pending-action="resume" data-pending-id="${escapeHtml(record.id)}">Reanudar envío</button>` : ''}
+            ${canEdit ? `<button type="button" class="pending-action-btn pending-action-primary" data-pending-action="preview" data-pending-id="${escapeHtml(record.id)}">Vista previa</button><button type="button" class="pending-action-btn pending-action-cancel" data-pending-action="cancel" data-pending-id="${escapeHtml(record.id)}">Cancelar envío</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+    passingPendingList.innerHTML = `
+      <div class="pending-table-wrap">
+        <table class="pending-table">
+          <thead><tr><th>PO / Cliente</th><th>Load Date</th><th>Release Date</th><th>Truck Line</th><th>Number Boxes</th><th>Estado</th><th>Contador</th><th>Acciones</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function updatePassingPendingCountdowns() {
+    document.querySelectorAll('[data-pending-countdown]').forEach(element => {
+      const record = passingPendingRecords.find(item => item.id === element.getAttribute('data-pending-countdown'));
+      if (record) element.textContent = formatPendingCountdown(record.scheduledAt, record.status);
+    });
+  }
+
+  async function loadPassingPendingRecords() {
+    const response = await fetch('/api/passing/pending');
+    if (!response.ok) throw new Error('No se pudieron cargar los Passing Sheets pendientes.');
+    const payload = await response.json();
+    passingPendingRecords = Array.isArray(payload.records) ? payload.records : [];
+    renderPassingPendingList();
+    updatePassingPendingCountdowns();
+  }
+
+  function getPassingPendingRecord(id) {
+    return passingPendingRecords.find(record => record.id === id);
+  }
+
+  async function cancelPassingPending(id) {
+    const record = getPassingPendingRecord(id);
+    if (!record || ['ENVIADO', 'CANCELADO'].includes(record.status)) return;
+    if (!confirm(`¿Cancelar el envío del Passing Sheet de la PO ${record.poNumber}?`)) return;
+    const response = await fetch(`/api/passing/pending/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'No se pudo cancelar el envío.');
+    const index = passingPendingRecords.findIndex(item => item.id === id);
+    if (index >= 0) passingPendingRecords[index] = payload.record;
+    renderPassingPendingList();
+    updatePassingPendingCountdowns();
+    showToast('Envío cancelado. La orden no fue modificada.');
+  }
+
+  async function resumePassingPending(id) {
+    const record = getPassingPendingRecord(id);
+    if (!record || record.status !== 'CANCELADO') return;
+    if (!confirm(`¿Reanudar el envío del Passing Sheet de la PO ${record.poNumber}?`)) return;
+    const response = await fetch(`/api/passing/pending/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'No se pudo reanudar el envío.');
+    const index = passingPendingRecords.findIndex(item => item.id === id);
+    if (index >= 0) passingPendingRecords[index] = payload.record;
+    renderPassingPendingList();
+    updatePassingPendingCountdowns();
+    showToast('Envío reanudado. El cronómetro fue recalculado.');
+  }
+
+  function showPassingPendingEditor(record) {
+    if (!passingPendingEditor) return;
+    const instructions = record.instructions || ['', '', ''];
+    const canEdit = !['ENVIADO', 'CANCELADO'].includes(record.status);
+    const disabledAttribute = canEdit ? '' : ' disabled';
+    passingPendingEditor.innerHTML = `
+      <div class="pending-editor-header">
+        <div><strong>${canEdit ? 'Editar' : 'Consultar'} Passing Sheet — ${escapeHtml(record.poNumber)}</strong><span class="pending-muted">Revisión ${escapeHtml(String(record.revision || 1))}</span></div>
+        <button type="button" class="pending-close-editor" data-pending-action="close-editor">Cerrar</button>
+      </div>
+      <form id="passingPendingEditorForm" class="pending-editor-form" data-pending-id="${escapeHtml(record.id)}">
+        <label>Load Date<input class="pending-form-control" name="loadDate" type="date" value="${escapeHtml(record.loadDate || '')}" required${disabledAttribute} /></label>
+        <label>Release Date<input class="pending-form-control" name="releaseDate" type="date" value="${escapeHtml(record.releaseDate || '')}" required${disabledAttribute} /></label>
+        <label>Truck Line<input class="pending-form-control" name="truckLine" value="${escapeHtml(record.truckLine || '')}"${disabledAttribute} /></label>
+        <label>Account #<input class="pending-form-control" name="account" value="${escapeHtml(record.account || '')}"${disabledAttribute} /></label>
+        <label>Number of Boxes<input class="pending-form-control" name="boxes" value="${escapeHtml(record.boxes ?? '')}"${disabledAttribute} /></label>
+        <label>Farm Ship to<input class="pending-form-control" name="farmShipTo" value="${escapeHtml(record.farmShipTo || '')}"${disabledAttribute} /></label>
+        <label class="pending-form-wide">Special Instruction 1<input class="pending-form-control" name="instruction1" value="${escapeHtml(instructions[0] || '')}"${disabledAttribute} /></label>
+        <label class="pending-form-wide">Special Instruction 2<input class="pending-form-control" name="instruction2" value="${escapeHtml(instructions[1] || '')}"${disabledAttribute} /></label>
+        <label class="pending-form-wide">Special Instruction 3<input class="pending-form-control" name="instruction3" value="${escapeHtml(instructions[2] || '')}"${disabledAttribute} /></label>
+        <div class="pending-editor-actions pending-form-wide">
+          ${canEdit ? '<button type="submit" class="pending-action-btn pending-action-primary">Guardar cambios</button>' : ''}
+          <button type="button" class="pending-action-btn" data-pending-action="preview" data-pending-id="${escapeHtml(record.id)}">Vista previa</button>
+          ${canEdit ? `<button type="button" class="pending-action-btn pending-action-send" data-pending-action="send" data-pending-id="${escapeHtml(record.id)}">Enviar ahora</button>` : ''}
+        </div>
+      </form>
+    `;
+    passingPendingEditor.style.display = 'block';
+    passingPendingEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function collectPassingPendingForm() {
+    const form = document.getElementById('passingPendingEditorForm');
+    if (!form) return null;
+    return {
+      id: form.getAttribute('data-pending-id'),
+      loadDate: form.elements.loadDate.value,
+      releaseDate: form.elements.releaseDate.value,
+      truckLine: form.elements.truckLine.value,
+      account: form.elements.account.value,
+      boxes: form.elements.boxes.value,
+      farmShipTo: form.elements.farmShipTo.value,
+      instructions: [form.elements.instruction1.value, form.elements.instruction2.value, form.elements.instruction3.value]
+    };
+  }
+
+  async function savePassingPendingEdit(showMessage = true) {
+    const input = collectPassingPendingForm();
+    if (!input) return null;
+    const response = await fetch(`/api/passing/pending/${encodeURIComponent(input.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'No se pudieron guardar los cambios.');
+    const index = passingPendingRecords.findIndex(record => record.id === input.id);
+    if (index >= 0) passingPendingRecords[index] = payload.record;
+    renderPassingPendingList();
+    showPassingPendingEditor(payload.record);
+    if (showMessage) showToast('Passing Sheet actualizado; el contador fue recalculado.');
+    return payload.record;
+  }
+
+  function openPassingPendingPreview(record) {
+    const suggestedName = `Passing_Sheet_${record.poNumber || 'PO'}_${record.loadDate || ''}.pdf`;
+    openPdfPreviewModal(`Passing Sheet Pendiente — ${record.poNumber}`, suggestedName, renderPassingSheetHtmlFromRecord(record));
+    // La vista previa debe quedar al frente; no dejamos la lista de pendientes
+    // abierta encima del documento.
+    closePassingPendingModal();
+    emailSendMode = 'pending';
+    pendingSendId = record.id;
+    const sendButton = document.getElementById('btnSendOrder');
+    if (sendButton) {
+      sendButton.textContent = 'Enviar ahora';
+      sendButton.style.display = 'inline-flex';
+      sendButton.disabled = false;
+    }
+  }
+
+  async function openPassingPendingModal() {
+    if (!passingPendingOverlay) return;
+    passingPendingOverlay.style.display = 'flex';
+    try {
+      await loadPassingPendingRecords();
+    } catch (error) {
+      passingPendingList.innerHTML = `<div class="pending-empty-state pending-error-state">${escapeHtml(error.message)}</div>`;
+    }
+    clearInterval(passingPendingTimer);
+    passingPendingTimer = setInterval(updatePassingPendingCountdowns, 1000);
+  }
+
+  function closePassingPendingModal() {
+    if (passingPendingOverlay) passingPendingOverlay.style.display = 'none';
+    if (passingPendingEditor) {
+      passingPendingEditor.style.display = 'none';
+      passingPendingEditor.innerHTML = '';
+    }
+    clearInterval(passingPendingTimer);
+    passingPendingTimer = null;
+  }
+
   async function enviarOrdenPorCorreo() {
-    commitPendingEditor();
+    if (emailSendMode !== 'pending') commitPendingEditor();
     const button = document.getElementById('btnSendOrder');
     if (!button) return;
     const isPassingSheet = emailSendMode === 'passing';
+    const isPendingPassingSheet = emailSendMode === 'pending';
     const originalLabel = button.textContent;
     button.disabled = true;
-    button.textContent = '✉️ Enviando...';
+    button.textContent = 'Enviando...';
     try {
-      const response = await fetch(isPassingSheet ? '/api/passing/send' : '/api/order/send', {
+      const endpoint = isPendingPassingSheet
+        ? `/api/passing/pending/${encodeURIComponent(pendingSendId)}/send`
+        : (isPassingSheet ? '/api/passing/send' : '/api/order/send');
+      const request = {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workbook)
-      });
+        headers: { 'Content-Type': 'application/json' }
+      };
+      if (!isPendingPassingSheet) request.body = JSON.stringify(workbook);
+      const response = await fetch(endpoint, request);
       let payload = {};
       try {
         payload = await response.json();
@@ -1753,11 +2021,17 @@
       if (!response.ok) throw new Error(payload.error || 'No se pudo enviar la orden por correo.');
       const recipients = Array.isArray(payload.sentTo) ? payload.sentTo.join(', ') : 'los destinatarios configurados';
       const pendingMessage = payload.pendingBom > 0 ? ` BOM pendiente incluido: ${payload.pendingBom}.` : '';
-      if (!isPassingSheet && payload.passingSent) {
-        const passingRecipients = Array.isArray(payload.passingSentTo)
-          ? payload.passingSentTo.join(', ')
-          : 'los destinatarios configurados';
-        showToast(`Orden enviada a ${recipients}. Passing Sheet enviado a ${passingRecipients}.${pendingMessage}`);
+      if (isPendingPassingSheet) {
+        showToast(`Passing Sheet enviado a ${recipients}.`);
+        document.getElementById('pdfModalOverlay').style.display = 'none';
+        pendingSendId = null;
+        await loadPassingPendingRecords();
+      } else if (!isPassingSheet && payload.passingQueued) {
+        const scheduled = payload.passingScheduledAt
+          ? new Date(payload.passingScheduledAt).toLocaleString()
+          : 'fecha pendiente';
+        const previewNote = payload.simulated ? ' (modo local simulado)' : '';
+        showToast(`Orden enviada${previewNote} a ${recipients}. Passing Sheet guardado en pendientes para ${scheduled}.${pendingMessage}`);
       } else {
         showToast(`${isPassingSheet ? 'Passing Sheet enviado' : 'Orden enviada'} a ${recipients}.${pendingMessage}`);
       }
@@ -1919,7 +2193,6 @@
 
   function openPdfPreviewModal(title, filename, contentHtml) {
     document.getElementById('pdfModalTitle').textContent = title;
-    document.getElementById('pdfModalSubtitle').textContent = `Nombre sugerido por macro: ${filename}`;
     document.getElementById('pdfFilenameInput').value = filename;
     document.getElementById('pdfPreviewContainer').innerHTML = contentHtml;
     document.getElementById('printOnlyRoot').innerHTML = contentHtml;
@@ -2782,8 +3055,55 @@
     document.getElementById('btnVisualGenerarOrden').addEventListener('click', () => {
       if (ejecutarGenerarOrdenPDF()) void generarArchivoPosco();
     });
-    document.getElementById('btnVisualGenerarPassing').addEventListener('click', () => {
-      ejecutarPdfPassingSheet();
+    document.getElementById('btnPassingPendientes').addEventListener('click', () => {
+      void openPassingPendingModal();
+    });
+    passingPendingList?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-pending-action]');
+      if (!button) return;
+      const action = button.getAttribute('data-pending-action');
+      const record = getPassingPendingRecord(button.getAttribute('data-pending-id'));
+      if (action === 'close-editor') {
+        if (passingPendingEditor) {
+          passingPendingEditor.style.display = 'none';
+          passingPendingEditor.innerHTML = '';
+        }
+      } else if (record && action === 'view') {
+        showPassingPendingEditor(record);
+      } else if (record && action === 'preview') {
+        openPassingPendingPreview(record);
+      } else if (record && action === 'cancel') {
+        void cancelPassingPending(record.id).catch(error => showToast(error.message, true));
+      } else if (record && action === 'resume') {
+        void resumePassingPending(record.id).catch(error => showToast(error.message, true));
+      }
+    });
+    passingPendingEditor?.addEventListener('submit', async (event) => {
+      if (event.target.id !== 'passingPendingEditorForm') return;
+      event.preventDefault();
+      try {
+        await savePassingPendingEdit();
+      } catch (error) {
+        showToast(error.message, true);
+      }
+    });
+    passingPendingEditor?.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-pending-action]');
+      if (!button) return;
+      const action = button.getAttribute('data-pending-action');
+      if (action === 'close-editor') {
+        passingPendingEditor.style.display = 'none';
+        passingPendingEditor.innerHTML = '';
+        return;
+      }
+      const id = button.getAttribute('data-pending-id');
+      try {
+        const record = await savePassingPendingEdit(false) || getPassingPendingRecord(id);
+        if (record && action === 'preview') openPassingPendingPreview(record);
+        if (record && action === 'send') openPassingPendingPreview(record);
+      } catch (error) {
+        showToast(error.message, true);
+      }
     });
     document.getElementById('btnSendOrder').addEventListener('click', () => {
       void enviarOrdenPorCorreo();
@@ -2826,6 +3146,7 @@
     document.getElementById('btnCloseBomModal').addEventListener('click', () => {
       document.getElementById('bomModalOverlay').style.display = 'none';
     });
+    document.getElementById('btnClosePassingPending').addEventListener('click', closePassingPendingModal);
     document.getElementById('btnPrintPdfNow').addEventListener('click', () => {
       const prevTitle = document.title;
       const customName = document.getElementById('pdfFilenameInput').value.replace(/\.pdf$/i, '');

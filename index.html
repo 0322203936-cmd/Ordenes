@@ -23,9 +23,9 @@
           <span class="btn-dot"></span>
           Generar Orden
         </button>
-        <button type="button" class="header-action-btn btn-generar-passing" id="btnVisualGenerarPassing">
+        <button type="button" class="header-action-btn btn-generar-passing" id="btnPassingPendientes">
           <span class="btn-dot"></span>
-          Generar Passing Sheet
+          Passing Sheets Pendientes
         </button>
       </div>
     </div>
@@ -120,15 +120,14 @@
       <div class="modal-header">
         <div>
           <h3 id="pdfModalTitle">Vista Previa de Documento PDF</h3>
-          <p class="modal-subtitle" id="pdfModalSubtitle">Archivo sugerido: PO_54444.pdf</p>
         </div>
         <div class="modal-header-actions">
           <label class="filename-label">
             Nombre PDF:
             <input type="text" id="pdfFilenameInput" class="pdf-filename-input" />
           </label>
-          <button class="btn-primary-print" id="btnSendOrder" style="display:none;" disabled>✉️ Enviar</button>
-          <button class="btn-primary-print" id="btnPrintPdfNow">🖨️ Imprimir</button>
+          <button class="btn-primary-print" id="btnSendOrder" style="display:none;" disabled>Enviar</button>
+          <button class="btn-primary-print" id="btnPrintPdfNow">Imprimir</button>
           <button class="btn-close-modal" id="btnClosePdfModal">✕</button>
         </div>
       </div>
@@ -154,6 +153,26 @@
         </div>
       </div>
       <div class="modal-body" id="bomModalBody"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: PASSING SHEETS PENDIENTES -->
+  <div id="passingPendingOverlay" class="modal-overlay passing-pending-overlay no-print" style="display:none;">
+    <div class="modal-card passing-pending-modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>Passing Sheets Pendientes</h3>
+          <p class="modal-subtitle">Revisa o edita el Passing Sheet antes de su envío programado.</p>
+        </div>
+        <div class="modal-header-actions">
+          <span id="passingPendingCount" class="pending-count-badge">0 pendientes</span>
+          <button class="btn-close-modal" id="btnClosePassingPending">✕</button>
+        </div>
+      </div>
+      <div class="modal-body passing-pending-body">
+        <div id="passingPendingList"></div>
+        <div id="passingPendingEditor" class="passing-pending-editor" style="display:none;"></div>
+      </div>
     </div>
   </div>
 
