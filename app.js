@@ -2186,6 +2186,7 @@
     emailSendMode = 'passing';
     const sendButton = document.getElementById('btnSendOrder');
     if (sendButton) {
+      sendButton.textContent = 'Enviar';
       sendButton.style.display = 'inline-flex';
       sendButton.disabled = false;
     }
@@ -3054,6 +3055,9 @@
     document.getElementById('btnRedo').addEventListener('click', redo);
     document.getElementById('btnVisualGenerarOrden').addEventListener('click', () => {
       if (ejecutarGenerarOrdenPDF()) void generarArchivoPosco();
+    });
+    document.getElementById('btnVisualGenerarPassing').addEventListener('click', () => {
+      ejecutarPdfPassingSheet();
     });
     document.getElementById('btnPassingPendientes').addEventListener('click', () => {
       void openPassingPendingModal();
