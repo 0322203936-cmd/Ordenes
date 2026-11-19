@@ -3116,9 +3116,6 @@
     document.getElementById('btnVisualGenerarOrden').addEventListener('click', () => {
       if (ejecutarGenerarOrdenPDF()) void generarArchivoPosco();
     });
-    document.getElementById('btnVisualGenerarPassing').addEventListener('click', () => {
-      ejecutarPdfPassingSheet();
-    });
     document.getElementById('btnPassingPendientes').addEventListener('click', () => {
       void openPassingPendingModal();
     });
