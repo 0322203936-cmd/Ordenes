@@ -76,7 +76,8 @@
     const formulasMigrated = migratePONuevoDefaultFormulas();
     engine = new window.FormulaEngine(workbook);
     engine.recalculateAll();
-    if (formulasMigrated) saveWorkbookState();
+    const passingFieldsMigrated = syncPassingSheetDerivedFields();
+    if (formulasMigrated || passingFieldsMigrated) saveWorkbookState();
 
     sheetCanvasWrapper.style.zoom = `${zoomLevel}%`;
     const zLbl = document.getElementById('zoomLabel');
@@ -209,6 +210,45 @@
     return 42;
   }
 
+  function getPassingBoxDimensionsValue() {
+    const ws = workbook?.sheets?.['PO Nuevo'];
+    if (!ws) return '';
+    const totalRow = getPONuevoTotalRow();
+    const dimensions = [];
+    for (let r = 22; r < totalRow; r += 1) {
+      const boxType = String(ws.cells[`F${r}`]?.v ?? '').trim();
+      const dimension = String(ws.cells[`G${r}`]?.v ?? '').trim();
+      const value = [boxType, dimension].filter(Boolean).join('-');
+      if (value && !dimensions.includes(value)) dimensions.push(value);
+    }
+    return dimensions.join(', ');
+  }
+
+  function syncPassingSheetDerivedFields() {
+    const sheet = workbook?.sheets?.['PASSING SHEET'];
+    if (!sheet) return false;
+    let changed = false;
+
+    if (sheet.cells.A11?.v !== 'BOX DIMENSION') {
+      const cell = { ...(sheet.cells.A11 || {}) };
+      delete cell.f;
+      cell.v = 'BOX DIMENSION';
+      sheet.cells.A11 = cell;
+      changed = true;
+    }
+
+    const dimension = getPassingBoxDimensionsValue();
+    if (sheet.cells.B11?.v !== dimension || sheet.cells.B11?.f) {
+      const cell = { ...(sheet.cells.B11 || {}) };
+      delete cell.f;
+      cell.v = dimension;
+      sheet.cells.B11 = cell;
+      changed = true;
+    }
+
+    return changed;
+  }
+
   function formatCellDisplay(sheetName, coord, rawVal, colStr, row) {
     if (rawVal === null || rawVal === undefined || rawVal === '') return '';
 
@@ -330,6 +370,7 @@
   function renderSheet() {
     closeInlineEditor(false);
     hideValidationDropdown();
+    syncPassingSheetDerivedFields();
 
     const sheet = workbook.sheets[activeSheet];
     if (!sheet) return;
@@ -1773,6 +1814,16 @@
     const value = coord => pendingCell(record, coord);
     const instructions = record.instructions || [value('B13'), value('B14'), value('B15')];
     const farmShipTo = record.farmShipTo || 'FLORAL TRADE';
+    const pendingDimensions = [];
+    for (let row = 22; row <= 300; row += 1) {
+      const boxType = String(record.orderSheet?.cells?.[`F${row}`]?.v ?? '').trim();
+      const dimension = String(record.orderSheet?.cells?.[`G${row}`]?.v ?? '').trim();
+      const value = [boxType, dimension].filter(Boolean).join('-');
+      if (value && value.toUpperCase() !== 'TOTAL' && !pendingDimensions.includes(value)) {
+        pendingDimensions.push(value);
+      }
+    }
+    const boxDimension = value('B11') || pendingDimensions.join(', ');
     const passingTitle = 'PASSING SHEET – FLORAL TRADE';
     return `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;color:#111827;">
@@ -1788,6 +1839,7 @@
             <tr><td style="font-weight:700;">Farm Ship to:</td><td>${escapeHtml(farmShipTo)}</td></tr>
             <tr><td style="font-weight:700;">Account # (if applicable):</td><td>${escapeHtml(record.account || value('B9'))}</td></tr>
             <tr><td style="font-weight:700;">Number of Boxes:</td><td style="font-weight:800;font-size:15px;">${escapeHtml(record.boxes ?? value('B10'))}</td></tr>
+            <tr><td style="font-weight:700;">BOX DIMENSION:</td><td>${escapeHtml(boxDimension)}</td></tr>
           </tbody>
         </table>
         <div style="margin-top:18px;font-size:13px;">
@@ -2148,8 +2200,10 @@
   // MACRO 7: Módulo1.bas -> Public Sub Generar_PDF_Passing_Sheet()
   function ejecutarPdfPassingSheet() {
     commitPendingEditor();
+    syncPassingSheetDerivedFields();
     const ws = workbook.sheets['PASSING SHEET'];
     const farmShipTo = String(workbook?.sheets?.['PO Nuevo']?.cells?.B18?.v ?? '').trim() || 'FLORAL TRADE';
+    const boxDimension = getPassingBoxDimensionsValue() || ws.cells['B11']?.v || '';
     const arrivalLabel = 'Load Date (Arrival to Floral Trade):';
     const passingTitle = 'PASSING SHEET – FLORAL TRADE';
     const html = `
@@ -2168,6 +2222,7 @@
             <tr><td style="font-weight:700;">Farm Ship to:</td><td>${escapeHtml(farmShipTo)}</td></tr>
             <tr><td style="font-weight:700;">Account # (if applicable):</td><td>${escapeHtml(ws.cells['B9']?.v ?? '')}</td></tr>
             <tr><td style="font-weight:700;">Number of Boxes:</td><td style="font-weight:800;font-size:15px;">${escapeHtml(ws.cells['B10']?.v ?? 0)}</td></tr>
+            <tr><td style="font-weight:700;">BOX DIMENSION:</td><td>${escapeHtml(boxDimension)}</td></tr>
           </tbody>
         </table>
         <div style="margin-top:18px;font-size:13px;">

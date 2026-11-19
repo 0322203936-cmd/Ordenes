@@ -12,6 +12,23 @@ function cellValue(sheet, coord) {
   return cell ?? '';
 }
 
+function passingBoxDimensions(workbook) {
+  const passingSheet = workbook?.sheets?.['PASSING SHEET'];
+  const savedValue = clean(cellValue(passingSheet, 'B11'));
+
+  const poSheet = workbook?.sheets?.['PO Nuevo'];
+  const dimensions = [];
+  for (let row = 22; row <= 300; row += 1) {
+    const boxType = clean(cellValue(poSheet, `F${row}`));
+    const dimension = clean(cellValue(poSheet, `G${row}`));
+    const value = [boxType, dimension].filter(Boolean).join('-');
+    if (value && value.toUpperCase() !== 'TOTAL' && !dimensions.includes(value)) {
+      dimensions.push(value);
+    }
+  }
+  return dimensions.join(', ') || savedValue;
+}
+
 function parseDate(value) {
   const text = clean(value);
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -92,22 +109,23 @@ async function createPassingSheetPdf(workbook) {
     ['Trucking Line', cellValue(sheet, 'B8'), false],
     ['Farm Ship to', farmShipTo, false],
     ['Account # (if applicable)', cellValue(sheet, 'B9'), false],
-    ['Number of Boxes', clean(cellValue(sheet, 'B10')) || '0', true]
+    ['Number of Boxes', clean(cellValue(sheet, 'B10')) || '0', true],
+    ['BOX DIMENSION', passingBoxDimensions(workbook), false]
   ];
   rows.forEach(([label, value, boldValue], index) => {
     drawTableRow(doc, label, value, sheetLeft, tableTop + index * 25, labelWidth, valueWidth, 25, boldValue);
   });
 
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 321);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text('Special Instructions:', sheetLeft, 346);
   [13, 14, 15].forEach((row, index) => {
     const line = clean(cellValue(sheet, `B${row}`)) || ' ';
-    const y = 347 + index * 27;
+    const y = 372 + index * 27;
     doc.moveTo(sheetLeft, y + 15).lineTo(sheetRight, y + 15).strokeColor('#334155').lineWidth(0.6).stroke();
     if (line !== ' ') doc.font('Helvetica').fontSize(10).fillColor('#334155').text(line, sheetLeft + 4, y, { width: sheetWidth - 8 });
   });
 
-  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 453);
-  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 479);
+  doc.font('Helvetica').fontSize(10).fillColor('#111827').text('Authorized by Pacifica Farms: ________________________________', sheetLeft, 478);
+  doc.text('Contact Phone: ______________________   Email: ______________________', sheetLeft, 504);
   doc.end();
   return { buffer: await completed, fileName };
 }
