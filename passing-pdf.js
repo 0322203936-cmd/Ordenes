@@ -17,16 +17,18 @@ function passingBoxDimensions(workbook) {
   const savedValue = clean(cellValue(passingSheet, 'B11'));
 
   const poSheet = workbook?.sheets?.['PO Nuevo'];
-  const dimensions = [];
+  const groups = new Map();
   for (let row = 22; row <= 300; row += 1) {
     const boxType = clean(cellValue(poSheet, `F${row}`));
     const dimension = clean(cellValue(poSheet, `G${row}`));
-    const value = [boxType, dimension].filter(Boolean).join('-');
-    if (value && value.toUpperCase() !== 'TOTAL' && !dimensions.includes(value)) {
-      dimensions.push(value);
-    }
+    const groupLabel = [boxType, dimension].filter(Boolean).join('-');
+    if (!groupLabel || groupLabel.toUpperCase() === 'TOTAL') continue;
+    const casesValue = Number(cellValue(poSheet, `H${row}`));
+    const cases = Number.isFinite(casesValue) ? casesValue : 0;
+    groups.set(groupLabel, (groups.get(groupLabel) || 0) + cases);
   }
-  return dimensions.join(', ') || savedValue;
+  const groupedText = Array.from(groups, ([label, cases]) => `(${cases}) ${label}`).join(', ');
+  return groupedText || savedValue;
 }
 
 function parseDate(value) {

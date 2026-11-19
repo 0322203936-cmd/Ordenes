@@ -214,14 +214,17 @@
     const ws = workbook?.sheets?.['PO Nuevo'];
     if (!ws) return '';
     const totalRow = getPONuevoTotalRow();
-    const dimensions = [];
+    const groups = new Map();
     for (let r = 22; r < totalRow; r += 1) {
       const boxType = String(ws.cells[`F${r}`]?.v ?? '').trim();
       const dimension = String(ws.cells[`G${r}`]?.v ?? '').trim();
-      const value = [boxType, dimension].filter(Boolean).join('-');
-      if (value && !dimensions.includes(value)) dimensions.push(value);
+      const groupLabel = [boxType, dimension].filter(Boolean).join('-');
+      if (!groupLabel) continue;
+      const casesValue = Number(ws.cells[`H${r}`]?.v);
+      const cases = Number.isFinite(casesValue) ? casesValue : 0;
+      groups.set(groupLabel, (groups.get(groupLabel) || 0) + cases);
     }
-    return dimensions.join(', ');
+    return Array.from(groups, ([label, cases]) => `(${cases}) ${label}`).join(', ');
   }
 
   function syncPassingSheetDerivedFields() {
@@ -1814,16 +1817,18 @@
     const value = coord => pendingCell(record, coord);
     const instructions = record.instructions || [value('B13'), value('B14'), value('B15')];
     const farmShipTo = record.farmShipTo || 'FLORAL TRADE';
-    const pendingDimensions = [];
+    const pendingDimensions = new Map();
     for (let row = 22; row <= 300; row += 1) {
       const boxType = String(record.orderSheet?.cells?.[`F${row}`]?.v ?? '').trim();
       const dimension = String(record.orderSheet?.cells?.[`G${row}`]?.v ?? '').trim();
-      const value = [boxType, dimension].filter(Boolean).join('-');
-      if (value && value.toUpperCase() !== 'TOTAL' && !pendingDimensions.includes(value)) {
-        pendingDimensions.push(value);
-      }
+      const groupLabel = [boxType, dimension].filter(Boolean).join('-');
+      if (!groupLabel || groupLabel.toUpperCase() === 'TOTAL') continue;
+      const casesValue = Number(record.orderSheet?.cells?.[`H${row}`]?.v);
+      const cases = Number.isFinite(casesValue) ? casesValue : 0;
+      pendingDimensions.set(groupLabel, (pendingDimensions.get(groupLabel) || 0) + cases);
     }
-    const boxDimension = value('B11') || pendingDimensions.join(', ');
+    const pendingDimensionText = Array.from(pendingDimensions, ([label, cases]) => `(${cases}) ${label}`).join(', ');
+    const boxDimension = value('B11') || pendingDimensionText;
     const passingTitle = 'PASSING SHEET – FLORAL TRADE';
     return `
       <div style="font-family:'Inter',sans-serif;max-width:680px;margin:0 auto;padding:16px;border:1px solid #cbd5e1;color:#111827;">
