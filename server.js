@@ -23,6 +23,7 @@ const {
   markPendingError,
   markPendingSent,
   pendingWorkbook,
+  queueManualPassingSheet,
   queuePassingSheet,
   resumePendingPassingSheet,
   startPassingSheetScheduler,
@@ -157,6 +158,17 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/passing/pending' && req.method === 'GET') {
     sendJson(res, 200, { ok: true, records: await listPendingPassingSheets() });
+    return;
+  }
+
+  if (pathname === '/api/passing/pending' && req.method === 'POST') {
+    try {
+      const input = JSON.parse(await readRequestBody(req));
+      const record = await queueManualPassingSheet(input);
+      sendJson(res, 200, { ok: true, record });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
     return;
   }
 

@@ -1643,6 +1643,65 @@ html, body {
   padding: 16px 18px 18px;
 }
 
+.passing-pending-creator {
+  background: #ffffff;
+  border: 1px solid #d8e3dc;
+  border-left: 4px solid #15803d;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+  padding: 16px 18px 18px;
+}
+
+.manual-passing-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.manual-passing-form label {
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 5px;
+}
+
+.manual-passing-lines {
+  border: 1px solid #d8e3dc;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.manual-passing-lines-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.manual-passing-line {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 2fr) minmax(120px, 1fr) minmax(145px, 1fr) 90px;
+  margin-top: 7px;
+}
+
+.manual-product-box,
+.manual-product-color {
+  background: #f3f7f4;
+}
+
+.manual-passing-summary {
+  background: #f1f8f2;
+  border: 1px solid #d0e6d4;
+  border-radius: 4px;
+  color: #14532d;
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 8px 10px;
+}
+
 .pending-editor-header,
 .pending-editor-actions {
   align-items: center;
@@ -1697,12 +1756,17 @@ html, body {
 }
 
 @media (max-width: 760px) {
-  .pending-editor-form {
+  .pending-editor-form,
+  .manual-passing-form {
     grid-template-columns: 1fr;
   }
 
   .pending-form-wide {
     grid-column: auto;
+  }
+
+  .manual-passing-line {
+    grid-template-columns: 1fr;
   }
 }
 

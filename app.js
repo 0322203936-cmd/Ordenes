@@ -52,6 +52,7 @@
   const filterDayOrdersClient = document.getElementById('filterDayOrdersClient');
   const passingPendingOverlay = document.getElementById('passingPendingOverlay');
   const passingPendingList = document.getElementById('passingPendingList');
+  const passingPendingCreator = document.getElementById('passingPendingCreator');
   const passingPendingEditor = document.getElementById('passingPendingEditor');
   const passingPendingCount = document.getElementById('passingPendingCount');
 
@@ -1920,6 +1921,198 @@
     return passingPendingRecords.find(record => record.id === id);
   }
 
+  function manualCustomerOptions() {
+    const sheet = workbook?.sheets?.['Transporte'];
+    if (!sheet) return [];
+    const maxRow = Math.max(sheet.maxRow || 77, getLastRealRow('Transporte'));
+    const seen = new Set();
+    const items = [];
+    for (let row = 2; row <= maxRow; row += 1) {
+      const value = String(sheet.cells?.[`A${row}`]?.v ?? '').trim();
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      items.push({
+        value,
+        shipTo: String(sheet.cells?.[`L${row}`]?.v ?? '').trim(),
+        farmShipTo: String(sheet.cells?.[`M${row}`]?.v ?? '').trim(),
+        truckLine: String(sheet.cells?.[`I${row}`]?.v ?? '').trim(),
+        account: sheet.cells?.[`J${row}`]?.v ?? ''
+      });
+    }
+    return items;
+  }
+
+  function manualProductOptions() {
+    const sheet = workbook?.sheets?.['Productos'];
+    if (!sheet) return [];
+    const maxRow = Math.max(sheet.maxRow || 234, getLastRealRow('Productos'));
+    const items = [];
+    for (let row = 2; row <= maxRow; row += 1) {
+      const flower = String(sheet.cells?.[`F${row}`]?.v ?? '').trim();
+      if (!flower) continue;
+      const boxType = String(sheet.cells?.[`I${row}`]?.v ?? '').trim();
+      let boxDimension = '';
+      for (let mapRow = 2; mapRow <= maxRow; mapRow += 1) {
+        if (String(sheet.cells?.[`K${mapRow}`]?.v ?? '').trim() === boxType) {
+          boxDimension = String(sheet.cells?.[`L${mapRow}`]?.v ?? '').trim();
+          if (boxDimension) break;
+        }
+      }
+      items.push({
+        row,
+        flower,
+        color: String(sheet.cells?.[`E${row}`]?.v ?? '').trim(),
+        stems: sheet.cells?.[`H${row}`]?.v ?? '',
+        pack: sheet.cells?.[`G${row}`]?.v ?? '',
+        boxType,
+        boxDimension
+      });
+    }
+    return items;
+  }
+
+  function manualDateDefault(coord, offset = 0) {
+    const raw = workbook?.sheets?.['PO Nuevo']?.cells?.[coord]?.v;
+    const text = String(raw ?? '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function manualProductRowHtml(index, products) {
+    const options = products.map(item => `<option value="${item.row}">${escapeHtml(item.flower)}${item.color ? ` — ${escapeHtml(item.color)}` : ''}</option>`).join('');
+    return `
+      <div class="manual-passing-line" data-manual-line="${index}">
+        <select class="pending-form-control manual-product-select" name="product-${index}">
+          <option value="">Selecciona una flor...</option>${options}
+        </select>
+        <input class="pending-form-control manual-product-color" name="color-${index}" placeholder="Color" readonly />
+        <input class="pending-form-control manual-product-box" name="box-${index}" placeholder="Caja / dimensión" readonly />
+        <input class="pending-form-control manual-product-cases" name="cases-${index}" type="number" min="1" step="1" placeholder="Cajas" />
+      </div>
+    `;
+  }
+
+  function updateManualProductLine(line) {
+    const row = Number(line.querySelector('.manual-product-select')?.value);
+    const item = manualProductOptions().find(product => product.row === row);
+    const color = line.querySelector('.manual-product-color');
+    const box = line.querySelector('.manual-product-box');
+    if (color) color.value = item?.color || '';
+    if (box) box.value = item ? [item.boxType, item.boxDimension].filter(Boolean).join('-') : '';
+    updateManualPassingSummary();
+  }
+
+  function updateManualPassingSummary() {
+    const creator = passingPendingCreator;
+    if (!creator) return;
+    const products = manualProductOptions();
+    const groups = new Map();
+    let total = 0;
+    creator.querySelectorAll('.manual-passing-line').forEach(line => {
+      const row = Number(line.querySelector('.manual-product-select')?.value);
+      const item = products.find(product => product.row === row);
+      const cases = Number(line.querySelector('.manual-product-cases')?.value || 0);
+      if (!item || !Number.isFinite(cases) || cases <= 0) return;
+      total += cases;
+      const label = [item.boxType, item.boxDimension].filter(Boolean).join('-');
+      if (label) groups.set(label, (groups.get(label) || 0) + cases);
+    });
+    const totalNode = creator.querySelector('[data-manual-total-boxes]');
+    const dimensionNode = creator.querySelector('[data-manual-dimensions]');
+    if (totalNode) totalNode.textContent = String(total);
+    if (dimensionNode) dimensionNode.textContent = Array.from(groups, ([label, cases]) => `(${cases}) ${label}`).join(', ') || 'Selecciona flores y cajas';
+  }
+
+  function showManualPassingCreator() {
+    if (!passingPendingCreator) return;
+    const customers = manualCustomerOptions();
+    const products = manualProductOptions();
+    const customerOptions = customers.map((item, index) => `<option value="${index}">${escapeHtml(item.value)}</option>`).join('');
+    const lines = Array.from({ length: 6 }, (_, index) => manualProductRowHtml(index, products)).join('');
+    passingPendingCreator.innerHTML = `
+      <div class="pending-editor-header">
+        <div><strong>Nuevo Passing Sheet manual</strong><span class="pending-muted">No genera orden ni archivo POSCO</span></div>
+        <button type="button" class="pending-close-editor" data-pending-action="close-creator">Cerrar</button>
+      </div>
+      <form id="manualPassingForm" class="manual-passing-form">
+        <label>Cliente<select class="pending-form-control" name="customer" required><option value="">Selecciona un cliente...</option>${customerOptions}</select></label>
+        <label>Referencia opcional<input class="pending-form-control" name="reference" placeholder="Ej. carga manual" /></label>
+        <label>Load Date<input class="pending-form-control" name="loadDate" type="date" value="${manualDateDefault('B19')}" required /></label>
+        <label>Release Date<input class="pending-form-control" name="releaseDate" type="date" value="${manualDateDefault('F19', 1)}" required /></label>
+        <label>Customer Ship To<input class="pending-form-control" name="customerShipTo" readonly /></label>
+        <label>Trucking Line<input class="pending-form-control" name="truckLine" readonly /></label>
+        <label>Account #<input class="pending-form-control" name="account" readonly /></label>
+        <label>Farm Ship to<input class="pending-form-control" name="farmShipTo" value="FLORAL TRADE" /></label>
+        <div class="manual-passing-lines pending-form-wide">
+        <div class="manual-passing-lines-header"><strong>Flores y cajas</strong><span class="pending-muted">La caja y dimensión se completan desde Productos <button type="button" class="pending-action-btn manual-add-line">+ Agregar línea</button></span></div>
+          ${lines}
+        </div>
+        <div class="manual-passing-summary pending-form-wide">Total de cajas: <strong data-manual-total-boxes>0</strong><br />Dimensiones: <strong data-manual-dimensions>Selecciona flores y cajas</strong></div>
+        <label class="pending-form-wide">Instrucción 1<input class="pending-form-control" name="instruction1" /></label>
+        <label class="pending-form-wide">Instrucción 2<input class="pending-form-control" name="instruction2" /></label>
+        <label class="pending-form-wide">Instrucción 3<input class="pending-form-control" name="instruction3" /></label>
+        <div class="pending-editor-actions pending-form-wide">
+          <button type="submit" class="pending-action-btn pending-action-primary">Crear Passing Sheet pendiente</button>
+          <button type="button" class="pending-action-btn" data-pending-action="close-creator">Cancelar</button>
+        </div>
+      </form>
+    `;
+    passingPendingCreator.style.display = 'block';
+    passingPendingEditor.style.display = 'none';
+    passingPendingCreator.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closeManualPassingCreator() {
+    if (!passingPendingCreator) return;
+    passingPendingCreator.style.display = 'none';
+    passingPendingCreator.innerHTML = '';
+  }
+
+  function collectManualPassingForm() {
+    const form = document.getElementById('manualPassingForm');
+    if (!form) return null;
+    const customers = manualCustomerOptions();
+    const customer = customers[Number(form.elements.customer.value)];
+    const products = manualProductOptions();
+    const lines = [];
+    form.querySelectorAll('.manual-passing-line').forEach(line => {
+      const product = products.find(item => item.row === Number(line.querySelector('.manual-product-select')?.value));
+      if (!product) return;
+      lines.push({ ...product, cases: Number(line.querySelector('.manual-product-cases')?.value || 0) });
+    });
+    return {
+      customer: customer?.value || '',
+      customerShipTo: customer?.shipTo || '',
+      truckLine: customer?.truckLine || '',
+      account: customer?.account ?? '',
+      farmShipTo: form.elements.farmShipTo.value,
+      reference: form.elements.reference.value,
+      loadDate: form.elements.loadDate.value,
+      releaseDate: form.elements.releaseDate.value,
+      lines,
+      instructions: [form.elements.instruction1.value, form.elements.instruction2.value, form.elements.instruction3.value]
+    };
+  }
+
+  async function createManualPassingPending() {
+    const input = collectManualPassingForm();
+    if (!input) return;
+    const response = await fetch('/api/passing/pending', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'No se pudo crear el Passing Sheet.');
+    passingPendingRecords.push(payload.record);
+    closeManualPassingCreator();
+    renderPassingPendingList();
+    updatePassingPendingCountdowns();
+    showToast('Passing Sheet manual creado en pendientes.');
+  }
+
   async function cancelPassingPending(id) {
     const record = getPassingPendingRecord(id);
     if (!record || ['ENVIADO', 'CANCELADO'].includes(record.status)) return;
@@ -2042,6 +2235,7 @@
 
   function closePassingPendingModal() {
     if (passingPendingOverlay) passingPendingOverlay.style.display = 'none';
+    closeManualPassingCreator();
     if (passingPendingEditor) {
       passingPendingEditor.style.display = 'none';
       passingPendingEditor.innerHTML = '';
@@ -3118,6 +3312,45 @@
     });
     document.getElementById('btnPassingPendientes').addEventListener('click', () => {
       void openPassingPendingModal();
+    });
+    document.getElementById('btnNewPassingPending')?.addEventListener('click', showManualPassingCreator);
+    passingPendingCreator?.addEventListener('change', (event) => {
+      if (event.target.name === 'customer') {
+        const customers = manualCustomerOptions();
+        const customer = customers[Number(event.target.value)];
+        const form = event.target.form;
+        if (form) {
+          form.elements.customerShipTo.value = customer?.shipTo || '';
+          form.elements.truckLine.value = customer?.truckLine || '';
+          form.elements.account.value = customer?.account ?? '';
+          if (customer?.farmShipTo) form.elements.farmShipTo.value = customer.farmShipTo;
+        }
+      }
+      if (event.target.classList.contains('manual-product-select')) {
+        updateManualProductLine(event.target.closest('.manual-passing-line'));
+      }
+      updateManualPassingSummary();
+    });
+    passingPendingCreator?.addEventListener('input', (event) => {
+      if (event.target.classList.contains('manual-product-cases')) updateManualPassingSummary();
+    });
+    passingPendingCreator?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-pending-action="close-creator"]')) closeManualPassingCreator();
+      const addLineButton = event.target.closest('.manual-add-line');
+      if (addLineButton) {
+        const lines = passingPendingCreator.querySelector('.manual-passing-lines');
+        const nextIndex = passingPendingCreator.querySelectorAll('.manual-passing-line').length;
+        if (lines) lines.insertAdjacentHTML('beforeend', manualProductRowHtml(nextIndex, manualProductOptions()));
+      }
+    });
+    passingPendingCreator?.addEventListener('submit', async (event) => {
+      if (event.target.id !== 'manualPassingForm') return;
+      event.preventDefault();
+      try {
+        await createManualPassingPending();
+      } catch (error) {
+        showToast(error.message, true);
+      }
     });
     passingPendingList?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-pending-action]');

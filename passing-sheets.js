@@ -189,6 +189,83 @@ function passingFields(workbook) {
   };
 }
 
+function buildManualPassingWorkbook(input = {}) {
+  const customer = clean(input.customer);
+  const loadDate = dateOnly(input.loadDate);
+  const releaseDate = dateOnly(input.releaseDate);
+  const rows = Array.isArray(input.lines) ? input.lines : [];
+  if (!customer) throw new Error('Selecciona un cliente para el Passing Sheet.');
+  if (!loadDate) throw new Error('Captura una fecha de Load Date válida.');
+  if (!releaseDate) throw new Error('Captura una fecha de Release Date válida.');
+  if (!rows.length) throw new Error('Agrega al menos una flor al Passing Sheet.');
+
+  const orderSheet = { maxRow: 45, maxCol: 12, cells: {} };
+  const passingSheet = { maxRow: 22, maxCol: 4, cells: {} };
+  const set = (sheet, coord, value) => setCellValue(sheet, coord, value);
+  const normalizedRows = [];
+  let totalBoxes = 0;
+  const dimensionGroups = new Map();
+
+  rows.forEach((line, index) => {
+    const flower = clean(line.flower);
+    const cases = Number(line.cases);
+    if (!flower || !Number.isFinite(cases) || cases <= 0) return;
+    const row = 22 + normalizedRows.length;
+    const boxType = clean(line.boxType);
+    const dimension = clean(line.boxDimension);
+    set(orderSheet, `A${row}`, clean(input.reference) || 'MANUAL');
+    set(orderSheet, `B${row}`, flower);
+    set(orderSheet, `C${row}`, clean(line.color));
+    set(orderSheet, `D${row}`, line.stems ?? '');
+    set(orderSheet, `E${row}`, line.pack ?? '');
+    set(orderSheet, `F${row}`, boxType);
+    set(orderSheet, `G${row}`, dimension);
+    set(orderSheet, `H${row}`, cases);
+    normalizedRows.push({ flower, cases, boxType, dimension });
+    totalBoxes += cases;
+    const label = [boxType, dimension].filter(Boolean).join('-');
+    if (label) dimensionGroups.set(label, (dimensionGroups.get(label) || 0) + cases);
+  });
+
+  if (!normalizedRows.length) throw new Error('Las líneas deben tener flor y un número de cajas mayor que cero.');
+  const dimensionText = Array.from(dimensionGroups, ([label, cases]) => `(${cases}) ${label}`).join(', ');
+  const reference = clean(input.reference) || 'MANUAL';
+
+  set(orderSheet, 'A9', reference);
+  set(orderSheet, 'F11', customer);
+  set(orderSheet, 'E12', clean(input.customerShipTo));
+  set(orderSheet, 'F15', clean(input.truckLine));
+  set(orderSheet, 'F16', input.account ?? '');
+  set(orderSheet, 'B18', clean(input.farmShipTo) || 'FLORAL TRADE');
+  set(orderSheet, 'B19', loadDate);
+  set(orderSheet, 'F19', releaseDate);
+  const totalRow = 22 + normalizedRows.length;
+  set(orderSheet, `G${totalRow}`, 'TOTAL');
+  set(orderSheet, `H${totalRow}`, totalBoxes);
+
+  set(passingSheet, 'A2', 'Please receive the following shipment and release it to the designated trucking line as instructed below.');
+  set(passingSheet, 'B4', 'Pacifica Produce Farms LLC');
+  set(passingSheet, 'B5', customer);
+  set(passingSheet, 'B6', loadDate);
+  set(passingSheet, 'B7', releaseDate);
+  set(passingSheet, 'B8', clean(input.truckLine));
+  set(passingSheet, 'B9', input.account ?? '');
+  set(passingSheet, 'B10', totalBoxes);
+  set(passingSheet, 'B11', dimensionText);
+  const instructions = Array.isArray(input.instructions) ? input.instructions : [];
+  instructions.slice(0, 3).forEach((value, index) => set(passingSheet, `B${13 + index}`, clean(value)));
+
+  return {
+    filename: `Passing Sheet Manual - ${reference}`,
+    sheets: { 'PO Nuevo': orderSheet, 'PASSING SHEET': passingSheet }
+  };
+}
+
+async function queueManualPassingSheet(input = {}) {
+  const workbook = buildManualPassingWorkbook(input);
+  return queuePassingSheet(workbook, 'manual');
+}
+
 function createPendingRecord(workbook, source = 'order-send') {
   const orderSheet = clone(workbook?.sheets?.['PO Nuevo'] || { cells: {} });
   const passingSheet = clone(workbook?.sheets?.['PASSING SHEET'] || { cells: {} });
@@ -437,6 +514,7 @@ module.exports = {
   markPendingError,
   markPendingSent,
   pendingWorkbook,
+  queueManualPassingSheet,
   queuePassingSheet,
   resumePendingPassingSheet,
   startPassingSheetScheduler,
